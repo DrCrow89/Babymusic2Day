@@ -12,6 +12,7 @@ import MFRC522, pygame
 ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
 VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
 NAME_LOG_DATEI = "log.txt" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
+INTRO_SOUND = "./data/intro.mp3"
 MUSIK_FORMAT = ".mp3" # Musikformat der Musik
 CHIP_AUF_LESER_THR = 5 # Sollte kein Chip mehr auf dem Leser für 5 Mal die Zykluszeit liegen, wird die Musik pausiert
 '''---------------------- Variablen -----------------------'''
@@ -19,6 +20,13 @@ CHIP_AUF_LESER_THR = 5 # Sollte kein Chip mehr auf dem Leser für 5 Mal die Zykl
 program_run = True
 letzte_uid = "LEER"
 aktuelles_musik_verzeichnis = "LEER"
+
+def init_musikplayer():
+    pygame.mixer.init()
+    pygame.mixer.music.load(INTRO_SOUND)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        continue
 
 def create_verzeichnis(ue_ordner):
     try:
@@ -63,6 +71,8 @@ def main():
     global aktuelles_musik_verzeichnis
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
     chip_auf_leser = 0
+
+    init_musikplayer()
 
     try:
         while program_run:
