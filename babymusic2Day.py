@@ -13,6 +13,7 @@ ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
 VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
 NAME_LOG_DATEI = "log.txt" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
 MUSIK_FORMAT = ".mp3" # Musikformat der Musik
+CHIP_AUF_LESER_THR = 5 # Sollte kein Chip mehr auf dem Leser für 5 Mal die Zykluszeit liegen, wird die Musik pausiert
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
 program_run = True
@@ -48,7 +49,7 @@ def read_chip(MIFAREReader):
     ret_neu = False # Die eingelesene ID ist eine neue
     (status,TagType) = MIFAREReader.MFRC522_Request(MIFAREReader.PICC_REQIDL) # Scan for card
     (status,uid) = MIFAREReader.MFRC522_Anticoll() # Get the UID of the card
-    if status == MIFAREReader.MI_OK: # If we have the UID, continue
+    if (status == MIFAREReader.MI_OK): # If we have the UID, continue
         gelesene_uid = (str(uid[0]) + str(uid[1]) + str(uid[2]) + str(uid[3]))
         if (gelesene_uid != ret_uid):
             letzte_uid = gelesene_uid
@@ -60,20 +61,22 @@ def main():
     global letzte_uid
     global program_run
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
+    chip_auf_leser = 0
     try:
         while program_run:
             temp_status, temp_neue_id, temp_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
-            if ((temp_neue_id == True)and(check_verzeichnis(temp_uid))) == True: # Neuer Chip wurde erkannt, Verzeichnis und Musik vorhanden
+            if (temp_neue_id == True)and(check_verzeichnis(temp_uid)) == True: # Neuer Chip wurde erkannt, Verzeichnis und Musik vorhanden
                 aktuelles_musik_verzeichnis = os.path.join(VERZEICHNIS_DATEN, temp_uid)
                 print "Musikplayer kann neues Verzeichnis abspielen"
-            else:
-                #print "Musikplayer bleibt im aktuellen"
-                # Keine neue Chipkarte erkannt
-                pass
-            print temp_status
-
+            else: # Kein neuer Chip wurd erkannt, Verzeichnis oder Musik nicht vorhanden
+                if (temp_status == 2)and(chip_auf_leser < CHIP_AUF_LESER_THR):
+                    chip_auf_leser = chip_auf_leser +1
+                elif (temp_status == 2)and(chip_auf_leser == CHIP_AUF_LESER_THR):
+                    print "Musikplayer stoppen"
+                else:
+                    chip_auf_leser = 0
+                print chip_auf_leser
             time.sleep(ZYKLUSZEIT_MAIN)
-            #print "ENDE"
 
     except KeyboardInterrupt:
         GPIO.cleanup()
