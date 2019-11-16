@@ -2,6 +2,7 @@
 # -*- coding: utf8 -*-
 import RPi.GPIO as GPIO
 import os, sys, time
+import glob, random # Playlisten erstellen
 import shutil # Kopieren der Log-Datei
 sys.path.append('MFRC522-python')
 sys.path.append('pygame')
@@ -20,13 +21,25 @@ CHIP_AUF_LESER_THR = 5 # Sollte kein Chip mehr auf dem Leser für 5 Mal die Zykl
 program_run = True
 letzte_uid = "LEER"
 aktuelles_musik_verzeichnis = "LEER"
+aktuelle_playliste = []
 
 def init_musikplayer():
     pygame.mixer.init()
-    pygame.mixer.music.load(INTRO_SOUND)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        continue
+    #pygame.mixer.music.load(INTRO_SOUND)
+    #pygame.mixer.music.play()
+    #while pygame.mixer.music.get_busy():
+    #    continue
+
+def create_playlist_sortiert(ue_verzeichnis):
+    playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
+    playliste.sort()
+    return playliste
+
+def create_playlist_random(ue_verzeichnis):
+    playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
+    random.shuffle(playliste)
+    return playliste
+
 
 def create_verzeichnis(ue_ordner):
     try:
@@ -69,6 +82,7 @@ def main():
     global letzte_uid
     global program_run
     global aktuelles_musik_verzeichnis
+    global aktuelle_playliste
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
     chip_auf_leser = 0
 
@@ -76,10 +90,13 @@ def main():
 
     try:
         while program_run:
+            # Auswertung des Readers
             temp_status, temp_neue_id, temp_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if (temp_neue_id == True)and(check_verzeichnis(temp_uid)) == True: # Neuer Chip wurde erkannt, Verzeichnis und Musik vorhanden
                 aktuelles_musik_verzeichnis = os.path.join(VERZEICHNIS_DATEN, temp_uid)
                 print "Musikplayer kann neues Verzeichnis abspielen"
+                aktuelle_playliste = create_playlist_sortiert(aktuelles_musik_verzeichnis)
+                
             else: # Kein neuer Chip wurd erkannt, Verzeichnis oder Musik nicht vorhanden
                 if (temp_status == 2)and(chip_auf_leser < CHIP_AUF_LESER_THR):
                     chip_auf_leser = chip_auf_leser +1
@@ -88,6 +105,8 @@ def main():
                     print "Musikplayer stoppen"
                 else:
                     chip_auf_leser = 0
+
+            # Steuerung des Musikplayers
 
             time.sleep(ZYKLUSZEIT_MAIN)
 
