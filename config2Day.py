@@ -6,9 +6,8 @@ def check_log_file(ue_pfad_datei):
     Config = ConfigParser.ConfigParser()
     if not os.path.isfile(ue_pfad_datei):
         cfgfile = open(ue_pfad_datei,'w')
-        Config.add_section('Typ')
-        Config.set('Typ', 'Lieder', 'on')
-        Config.set('Typ', 'Hoerspiel', 'off')
+        Config.add_section('Grundeinstellung')
+        Config.set('Grundeinstellung', 'Typ', 'Hoerspiel') # Hoerspiel/Musik
         Config.add_section('Log')
         Config.set('Log', 'letzter_titel', 'LEER')
         Config.set('Log', 'letzte_stelle', '0')
@@ -75,7 +74,7 @@ def get_value(ue_pfad_datei, ue_section, ue_option):
         return False, 0
 
 def main():
-    path = "./data/musikfile.log"
+    path = "./data/musicfile.log"
     check_log_file(path)
     #######################################
     if check_section(path, 'Typ') == True:
@@ -93,7 +92,7 @@ def main():
     else:
         print "Kein float-Wert"
     #######################################
-    erfolgreich, wert = get_value_boolean(path, "Typ", "lieder")
+    erfolgreich, wert = get_value(path, "Grundeinstellung", "Typ")
     if erfolgreich:
         print "Der Bool-Wert: " + str(wert) + " vom Typ: " + str(type(wert))
     else:

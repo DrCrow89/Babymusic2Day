@@ -7,12 +7,13 @@ import shutil # Kopieren der Log-Datei
 sys.path.append('MFRC522-python')
 sys.path.append('pygame')
 import MFRC522, pygame
+import config2Day
 
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
 ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
 VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
-NAME_LOG_DATEI = "log.txt" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
+NAME_LOG_DATEI = "musicfile.log" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
 INTRO_SOUND = "./data/intro.mp3"
 MUSIK_FORMAT = ".mp3" # Musikformat der Musik
 CHIP_AUF_LESER_THR = 5 # Sollte kein Chip mehr auf dem Leser für 5 Mal die Zykluszeit liegen, wird die Musik pausiert
@@ -95,8 +96,16 @@ def main():
             if (temp_neue_id == True)and(check_verzeichnis(temp_uid)) == True: # Neuer Chip wurde erkannt, Verzeichnis und Musik vorhanden
                 aktuelles_musik_verzeichnis = os.path.join(VERZEICHNIS_DATEN, temp_uid)
                 print "Musikplayer kann neues Verzeichnis abspielen"
-                aktuelle_playliste = create_playlist_sortiert(aktuelles_musik_verzeichnis)
-                
+                ### Playliste erstellen auf Basis des Musiktyps ###
+                erfolgreich_gelesen, wert = config2Day.get_value(os.path.join(VERZEICHNIS_DATEN, temp_uid, NAME_LOG_DATEI), "Grundeinstellung", "Typ")
+                if ((erfolgreich_gelesen == True)and(wert == "Hoerspiel")):
+                    print "Titel ist ein Hörspiel und wird nicht gemischt"
+                    aktuelle_playliste = create_playlist_sortiert(aktuelles_musik_verzeichnis)
+                elif ((erfolgreich_gelesen == True)and(wert == "Musik")):
+                    print "Titel ist ein Musikalbum und wird gemischt"
+                    aktuelle_playliste = create_playlist_random(aktuelles_musik_verzeichnis)
+                else:
+                    pass
             else: # Kein neuer Chip wurd erkannt, Verzeichnis oder Musik nicht vorhanden
                 if (temp_status == 2)and(chip_auf_leser < CHIP_AUF_LESER_THR):
                     chip_auf_leser = chip_auf_leser +1
