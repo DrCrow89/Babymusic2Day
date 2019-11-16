@@ -1,21 +1,30 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 import RPi.GPIO as GPIO
-import os, sys, time, threading
+import os, sys, time
+import shutil # Kopieren der Log-Datei
 sys.path.append('MFRC522-python')
 sys.path.append('pygame')
 import MFRC522, pygame
 
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
-ZYKLUSZEIT_MAIN = 0.2 #Zykluszeit des Programms
-VERZEICHNIS_DATEN = "./data"
-MUSIK_FORMAT = ".mp3"
+ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
+VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
+NAME_LOG_DATEI = "log.txt" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
+MUSIK_FORMAT = ".mp3" # Musikformat der Musik
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
 program_run = True
 letzte_uid = "LEER"
 aktuelles_musik_verzeichnis = "LEER"
+
+def create_verzeichnis(ue_ordner):
+    try:
+        os.mkdir(os.path.join(VERZEICHNIS_DATEN, ue_ordner)) # Ordner mit der ID erstellen
+        shutil.copy(os.path.join(VERZEICHNIS_DATEN, NAME_LOG_DATEI), os.path.join(VERZEICHNIS_DATEN, ue_ordner)) # Default-Logdatei in neues Verzeichnis kopieren
+    except OSError:
+        print "Verzeichnis konnte nicht erstellt werden"
 
 def check_verzeichnis(ue_uid):
     ret_musik_vorhanden = False
@@ -28,7 +37,9 @@ def check_verzeichnis(ue_uid):
                     break
         else: # Verzeichnis existiert nicht
             ret_musik_vorhanden = False
+            create_verzeichnis(ue_uid)
             print "Verzeichnis: " + str(os.path.join(VERZEICHNIS_DATEN, ue_uid)) + " existiert nicht"
+
     return ret_musik_vorhanden
 
 def read_chip(MIFAREReader):
@@ -37,7 +48,6 @@ def read_chip(MIFAREReader):
     ret_neu = False # Die eingelesene ID ist eine neue
     (status,TagType) = MIFAREReader.MFRC522_Request(MIFAREReader.PICC_REQIDL) # Scan for card
     (status,uid) = MIFAREReader.MFRC522_Anticoll() # Get the UID of the card
-    #print "Status: " + str(status)
     if status == MIFAREReader.MI_OK: # If we have the UID, continue
         gelesene_uid = (str(uid[0]) + str(uid[1]) + str(uid[2]) + str(uid[3]))
         if (gelesene_uid != ret_uid):
