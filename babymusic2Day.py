@@ -60,8 +60,10 @@ def read_chip(MIFAREReader):
 def main():
     global letzte_uid
     global program_run
+    global aktuelles_musik_verzeichnis
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
     chip_auf_leser = 0
+
     try:
         while program_run:
             temp_status, temp_neue_id, temp_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
@@ -72,10 +74,11 @@ def main():
                 if (temp_status == 2)and(chip_auf_leser < CHIP_AUF_LESER_THR):
                     chip_auf_leser = chip_auf_leser +1
                 elif (temp_status == 2)and(chip_auf_leser == CHIP_AUF_LESER_THR):
+                    # Sollte kein Chip mehr auf dem Leser liegen, wird die Musik gestoppt
                     print "Musikplayer stoppen"
                 else:
                     chip_auf_leser = 0
-                print chip_auf_leser
+
             time.sleep(ZYKLUSZEIT_MAIN)
 
     except KeyboardInterrupt:
