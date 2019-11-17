@@ -2,8 +2,10 @@
 # -*- coding:utf-8 -*-
 import os, ConfigParser
 
+Config = ConfigParser.ConfigParser()
+
 def check_log_file(ue_pfad_datei):
-    Config = ConfigParser.ConfigParser()
+    #Config = ConfigParser.ConfigParser()
     if not os.path.isfile(ue_pfad_datei):
         cfgfile = open(ue_pfad_datei,'w')
         Config.add_section('Grundeinstellung')
@@ -16,7 +18,7 @@ def check_log_file(ue_pfad_datei):
 
 def check_section(ue_pfad_datei, ue_section):
     if os.path.isfile(ue_pfad_datei):
-        Config = ConfigParser.ConfigParser()
+        #Config = ConfigParser.ConfigParser()
         Config.read(ue_pfad_datei)
         if Config.has_section(ue_section):
             return True
@@ -27,7 +29,7 @@ def check_section(ue_pfad_datei, ue_section):
 
 def get_value_int(ue_pfad_datei, ue_section, ue_option):
     if check_section(ue_pfad_datei, ue_section):
-        Config = ConfigParser.ConfigParser()
+        #Config = ConfigParser.ConfigParser()
         Config.read(ue_pfad_datei)
         try:
             return True, Config.getint(ue_section, ue_option)
@@ -39,7 +41,7 @@ def get_value_int(ue_pfad_datei, ue_section, ue_option):
 
 def get_value_float(ue_pfad_datei, ue_section, ue_option):
     if check_section(ue_pfad_datei, ue_section):
-        Config = ConfigParser.ConfigParser()
+        #Config = ConfigParser.ConfigParser()
         Config.read(ue_pfad_datei)
         try:
             return True, Config.getfloat(ue_section, ue_option)
@@ -52,7 +54,7 @@ def get_value_float(ue_pfad_datei, ue_section, ue_option):
 # True == [1, yes, true, on] // False == [0, no, false, off]
 def get_value_boolean(ue_pfad_datei, ue_section, ue_option):
     if check_section(ue_pfad_datei, ue_section):
-        Config = ConfigParser.ConfigParser()
+        #Config = ConfigParser.ConfigParser()
         Config.read(ue_pfad_datei)
         try:
             return True, Config.getboolean(ue_section, ue_option)
@@ -64,7 +66,7 @@ def get_value_boolean(ue_pfad_datei, ue_section, ue_option):
 
 def get_value(ue_pfad_datei, ue_section, ue_option):
     if check_section(ue_pfad_datei, ue_section):
-        Config = ConfigParser.ConfigParser()
+        #Config = ConfigParser.ConfigParser()
         Config.read(ue_pfad_datei)
         try:
             return True, Config.get(ue_section, ue_option)
@@ -73,13 +75,36 @@ def get_value(ue_pfad_datei, ue_section, ue_option):
     else:
         return False, 0
 
+def set_value(ue_path, ue_section, ue_option, ue_value):
+    try:
+        cfgfile = open(ue_path,'w')
+        Config.set(ue_section, ue_option, ue_value)
+        Config.write(cfgfile)
+        cfgfile.close()
+    except ValueError:
+        pass
+
 def main():
     path = "./data/musicfile.log"
     check_log_file(path)
     #######################################
-    if check_section(path, 'Typ') == True:
-        print "Section ist vorhanden"
+    if check_section(path, 'Grundeinstellung') == True:
+        print "Section Grundeinstellung ist vorhanden"
+    else:
+        print "Section Grundeinstellung ist nicht vorhanden"
     #######################################
+    if check_section(path, 'Log') == True:
+        print "Section Log ist vorhanden"
+    else:
+        print "Section Log ist nicht vorhanden"
+    #######################################
+    erfolgreich, wert = get_value_int(path, "Log", "letzte_stelle")
+    if erfolgreich:
+        print "Der int-Wert: " + str(wert) + " vom Typ: " + str(type(wert))
+    else:
+        print "Kein int-Wert"
+    #######################################
+    set_value(path, "Log", "letzte_stelle", "987")
     erfolgreich, wert = get_value_int(path, "Log", "letzte_stelle")
     if erfolgreich:
         print "Der int-Wert: " + str(wert) + " vom Typ: " + str(type(wert))
