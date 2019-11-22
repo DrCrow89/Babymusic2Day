@@ -9,6 +9,9 @@ sys.path.append('pygame')
 import MFRC522, pygame
 import config2Day
 
+'''-------------------- Konfiguration ---------------------'''
+'''--------------------------------------------------------'''
+INIT_SOUND = True
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
 ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
@@ -31,14 +34,11 @@ aktueller_titel = "LEER"
 
 def init_musikplayer():
     pygame.mixer.init()
-    print "Musikplayer initialisiert"
-    '''
-    pygame.mixer.music.load(INTRO_SOUND)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        continue
-    print pygame.mixer.music.get_pos()
-    '''
+    if INIT_SOUND == True:
+        pygame.mixer.music.load(INTRO_SOUND)
+        pygame.mixer.music.play()
+        while pygame.mixer.music.get_busy():
+            continue
 
 def start_musikplayer(ue_aktuelle_playliste, ue_aktueller_titel, ue_start):
     pygame.mixer.music.load(ue_aktuelle_playliste[ue_aktuelle_playliste.index(ue_aktueller_titel)])
@@ -91,7 +91,6 @@ def check_verzeichnis(ue_uid):
         else: # Verzeichnis existiert nicht
             ret_musik_vorhanden = False
             create_verzeichnis(ue_uid)
-            print "Verzeichnis: " + str(os.path.join(VERZEICHNIS_DATEN, ue_uid)) + " existiert nicht"
     return ret_musik_vorhanden
 
 def read_chip(MIFAREReader):
@@ -140,7 +139,6 @@ def main():
             neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
                 # starte Musikplayer mit neue Playliste
-                print "Neue UID: " + str(chip_uid)
                 print "starte Musikplayer mit neue Playliste"
                 if (chip_uid == "LEER"):
                     stop_musikplayer_hart()
@@ -152,7 +150,6 @@ def main():
                 if ((erfolgreich_gelesen == True)and(musiktyp == "Hoerspiel")):
                     print "Titel ist ein Hörspiel und wird nicht gemischt"
                     aktuelle_playliste = create_playlist_sortiert(aktuelles_musik_verzeichnis)
-                    print aktuelle_playliste
                     erfolgreich_gelesen_1, aktueller_titel = config2Day.get_value(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Log", "letzter_titel")
                     erfolgreich_gelesen_2, spielzeit_offset = config2Day.get_value_int(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Log", "letzte_stelle")
                     if aktueller_titel == "LEER":
@@ -164,7 +161,6 @@ def main():
                 elif ((erfolgreich_gelesen == True)and(musiktyp == "Musik")):
                     print "Titel ist ein Musikalbum und wird gemischt"
                     aktuelle_playliste = create_playlist_random(aktuelles_musik_verzeichnis)
-                    print aktuelle_playliste
                     aktueller_titel = random.choice(aktuelle_playliste)
                     aktueller_titel_index = aktuelle_playliste.index(aktueller_titel)
                     spielzeit_offset = 0
@@ -173,13 +169,11 @@ def main():
                 start_musikplayer(aktuelle_playliste, aktueller_titel, spielzeit_offset)
             elif ((neue_uid == True)and(check_verzeichnis(chip_uid)) == False):
                 # Neuer Chip auf leser aber keine Musik vorhanden. Musikplayer stoppen.
-                print "Neuer Chip auf leser aber keine Musik vorhanden. Musikplayer stoppen."
                 stop_musikplayer(os.path.join(aktuelles_musik_verzeichnis, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
 
             elif (chip_uid == "LEER"):
                 # Kein Chip mehr vorhanden, stoppe Musik
                 stop_musikplayer(os.path.join(aktuelles_musik_verzeichnis, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
-                pass
             else:
                 # Keine Veränderung und eine gültige Musikwiedergabe
                 pass
@@ -193,7 +187,6 @@ def main():
                 print "Nächster Titel"
                 aktueller_titel = aktuelle_playliste[aktueller_titel_index]
                 start_musikplayer(aktuelle_playliste, aktuelle_playliste[aktueller_titel_index], 0)
-                print aktuelle_playliste[aktueller_titel_index]
             else:
                 pass
 
