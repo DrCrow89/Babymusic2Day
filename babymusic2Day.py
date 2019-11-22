@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 import RPi.GPIO as GPIO
-import os, sys, time
+import os, sys, time, subprocess
 import glob, random # Playlisten erstellen
 import shutil # Kopieren der Log-Datei
 sys.path.append('MFRC522-python')
@@ -72,8 +72,10 @@ def create_playlist_random(ue_verzeichnis):
 
 def create_verzeichnis(ue_ordner):
     try:
-        os.mkdir(os.path.join(VERZEICHNIS_DATEN, ue_ordner)) # Ordner mit der ID erstellen
-        shutil.copy(os.path.join(VERZEICHNIS_DATEN, NAME_LOG_DATEI), os.path.join(VERZEICHNIS_DATEN, ue_ordner)) # Default-Logdatei in neues Verzeichnis kopieren
+        temp_verzeichnis = os.path.join(VERZEICHNIS_DATEN, ue_ordner)
+        os.mkdir(temp_verzeichnis) # Ordner mit der ID erstellen
+        shutil.copy(os.path.join(VERZEICHNIS_DATEN, NAME_LOG_DATEI), temp_verzeichnis) # Default-Logdatei in neues Verzeichnis kopieren
+        subprocess.call(["sudo", "chmod", "-R", "777", temp_verzeichnis])
     except OSError:
         print "Verzeichnis konnte nicht erstellt werden"
 
@@ -183,7 +185,7 @@ def main():
                 pass
 
             # Steuerung Musikplayer
-            if ((pygame.mixer.music.get_busy() == False)and(chip_uid != "LEER")):
+            if ((pygame.mixer.music.get_busy() == False)and(check_verzeichnis(chip_uid) == True)):
                 aktueller_titel_index = aktueller_titel_index+1
                 spielzeit_offset = 0
                 if aktueller_titel_index == len(aktuelle_playliste):
