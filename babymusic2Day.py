@@ -32,19 +32,26 @@ aktueller_titel = "LEER"
 
 def init_musikplayer():
     pygame.mixer.init()
-    #pygame.mixer.music.load(INTRO_SOUND)
-    #pygame.mixer.music.play()
-    #while pygame.mixer.music.get_busy():
-        #continue
-    #print pygame.mixer.music.get_pos()
+    print "Musikplayer initialisiert"
+    '''
+    pygame.mixer.music.load(INTRO_SOUND)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        continue
+    print pygame.mixer.music.get_pos()
+    '''
 
-def load_musikplayer(ue_aktuelle_playliste, ue_aktueller_titel, ue_start):
+def start_musikplayer(ue_aktuelle_playliste, ue_aktueller_titel, ue_start):
     pygame.mixer.music.load(ue_aktuelle_playliste[ue_aktuelle_playliste.index(ue_aktueller_titel)])
     pygame.mixer.music.play(start=ue_start)
 
 def set_musikdaten(ue_path, ue_section, ue_option_titel, ue_option_stelle):
     config2Day.set_value(ue_path, "Log", "letzter_titel", str(ue_option_titel))
     config2Day.set_value(ue_path, "Log", "letzte_stelle", str(ue_option_stelle))
+
+def stop_musikplayer_hart():
+    if pygame.mixer.music.get_busy() == True:
+        pygame.mixer.music.stop()
 
 def stop_musikplayer(ue_path, ue_titel, ue_spielzeit_offset):
     if pygame.mixer.music.get_busy() == True:
@@ -131,16 +138,50 @@ def main():
             neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
                 # starte Musikplayer mit neue Playliste
+                print "Neue UID: " + str(chip_uid)
                 print "starte Musikplayer mit neue Playliste"
+                if (chip_uid == "LEER"):
+                    stop_musikplayer_hart()
+                else:
+                    stop_musikplayer(os.path.join(aktuelles_musik_verzeichnis, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
+
+                aktuelles_musik_verzeichnis = os.path.join(VERZEICHNIS_DATEN, chip_uid)
+                erfolgreich_gelesen, musiktyp = config2Day.get_value(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Grundeinstellung", "Typ")
+                if ((erfolgreich_gelesen == True)and(musiktyp == "Hoerspiel")):
+                    print "Titel ist ein Hörspiel und wird nicht gemischt"
+                    aktuelle_playliste = create_playlist_sortiert(aktuelles_musik_verzeichnis)
+                    #print "Aktuelle playliste:" + str(aktuelle_playliste)
+                    erfolgreich_gelesen_1, aktueller_titel = config2Day.get_value(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Log", "letzter_titel")
+                    erfolgreich_gelesen_2, spielzeit_offset = config2Day.get_value_int(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Log", "letzte_stelle")
+                    if aktueller_titel == "LEER":
+                        aktueller_titel = aktuelle_playliste[0]
+                        aktueller_titel_index = 0
+                        spielzeit_offset = 0
+                    else:
+                        aktueller_titel_index = aktuelle_playliste.index(aktueller_titel)
+                elif ((erfolgreich_gelesen == True)and(musiktyp == "Musik")):
+                    print "Titel ist ein Musikalbum und wird gemischt"
+                    aktuelle_playliste = create_playlist_random(aktuelles_musik_verzeichnis)
+                    aktueller_titel = random.choice(aktuelle_playliste)
+                    aktueller_titel_index = aktuelle_playliste.index(aktueller_titel)
+                    spielzeit_offset = 0
+                else:
+                    pass
+                start_musikplayer(aktuelle_playliste, aktueller_titel, spielzeit_offset)
             elif ((neue_uid == True)and(check_verzeichnis(chip_uid)) == False):
                 # Neuer Chip auf leser aber keine Musik vorhanden. Musikplayer stoppen.
                 print "Neuer Chip auf leser aber keine Musik vorhanden. Musikplayer stoppen."
+                stop_musikplayer(os.path.join(aktuelles_musik_verzeichnis, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
+
             elif (chip_uid == "LEER"):
                 # Kein Chip mehr vorhanden, stoppe Musik
+                stop_musikplayer(os.path.join(aktuelles_musik_verzeichnis, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
                 print "Kein Chip mehr vorhanden, stoppe Musik"
+                pass
             else:
                 # Keine Veränderung und eine gültige Musikwiedergabe
-                print "Keine Veränderung und eine gültige Musikwiedergabe mit Chip"
+                #print "Keine Veränderung und eine gültige Musikwiedergabe mit Chip"
+                pass
             '''
             if (temp_neue_id == True)and(check_verzeichnis(temp_uid)) == True: # Neuer Chip wurde erkannt, Verzeichnis und Musik vorhanden
                 chip_auf_leser = 0 # Sobald eine neue Karte
@@ -149,6 +190,7 @@ def main():
                 print temp_uid
                 print "####################################################"
                 #stop_musikplayer(os.path.join(VERZEICHNIS_DATEN, temp_uid, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
+
                 aktuelles_musik_verzeichnis = os.path.join(VERZEICHNIS_DATEN, temp_uid)
                 print "Musikplayer kann neues Verzeichnis abspielen"
                 ### Playliste erstellen auf Basis des Musiktyps ###
