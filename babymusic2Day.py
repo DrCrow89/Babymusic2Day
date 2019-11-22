@@ -16,15 +16,19 @@ VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
 NAME_LOG_DATEI = "musicfile.log" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
 INTRO_SOUND = "./data/intro.mp3"
 MUSIK_FORMAT = ".mp3" # Musikformat der Musik
+NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
 CHIP_AUF_LESER_THR = 5 # Sollte kein Chip mehr auf dem Leser für 5 Mal die Zykluszeit liegen, wird die Musik pausiert
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
 program_run = True
-letzte_uid = "LEER"
+nio_read_counter = 0 # Counter zum
+aktuelle_chip_uid = "LEER"
+letzte_gueltige_chip_uid = "LEER"
 aktuelles_musik_verzeichnis = "LEER"
 aktuelle_playliste = []
 aktueller_titel_index = 0
 aktueller_titel = "LEER"
+
 
 def init_musikplayer():
     pygame.mixer.init()
@@ -48,8 +52,6 @@ def stop_musikplayer(ue_path, ue_titel, ue_spielzeit_offset):
         speicherzeit = (((pygame.mixer.music.get_pos())/1000)+ue_spielzeit_offset) # Die aktuelle Spielzeit richtet sich nur nach dem Playerstart. Nicht nach dem Musikstart und muss daher aufaddiert werden.
         set_musikdaten(ue_path, "Log", ue_titel, speicherzeit)
         pygame.mixer.music.stop()
-    else:
-        pass
 
 def create_playlist_sortiert(ue_verzeichnis):
     playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
@@ -84,21 +86,34 @@ def check_verzeichnis(ue_uid):
     return ret_musik_vorhanden
 
 def read_chip(MIFAREReader):
-    global letzte_uid
-    ret_uid = letzte_uid
-    ret_neu = False # Die eingelesene ID ist eine neue
+    # Wirklich nötig die global zu haben?
+    global nio_read_counter # Zum zählen der ungültigen Leseversuche
+    global aktuelle_chip_uid # Aktuelle Information über den Chip. Ungültig: "LEER" oder gültig mit der uid
+    global letzte_gueltige_chip_uid # Letzte gültige chip-uid
+    temp_neue_uid = False
+
     (status,TagType) = MIFAREReader.MFRC522_Request(MIFAREReader.PICC_REQIDL) # Scan for card
     (status,uid) = MIFAREReader.MFRC522_Anticoll() # Get the UID of the card
     if (status == MIFAREReader.MI_OK): # If we have the UID, continue
-        gelesene_uid = (str(uid[0]) + str(uid[1]) + str(uid[2]) + str(uid[3]))
-        if (gelesene_uid != ret_uid):
-            letzte_uid = gelesene_uid
-            ret_uid = gelesene_uid
-            ret_neu = True
-    return status, ret_neu, ret_uid
+        aktuelle_chip_uid = (str(uid[0]) + str(uid[1]) + str(uid[2]) + str(uid[3]))
+        if (aktuelle_chip_uid != letzte_gueltige_chip_uid):
+            temp_neue_uid = True
+            letzte_gueltige_chip_uid = aktuelle_chip_uid
+        else:
+            pass
+        nio_read_counter = 0
+    else:
+        if (nio_read_counter < NIO_READ_COUNTER_THR):
+            nio_read_counter = nio_read_counter +1
+            aktuelle_chip_uid = letzte_gueltige_chip_uid
+        elif (nio_read_counter == NIO_READ_COUNTER_THR):
+            aktuelle_chip_uid = "LEER"
+            letzte_gueltige_chip_uid = "LEER"
+        else:
+            pass
+    return temp_neue_uid, aktuelle_chip_uid # return1: Neue gültige uid / return2: chip uid der aktuellen Karte
 
 def main():
-    global letzte_uid
     global program_run
     global aktuelles_musik_verzeichnis
     global aktuelle_playliste
@@ -113,7 +128,20 @@ def main():
     try:
         while program_run:
             # Auswertung des Readers
-            temp_status, temp_neue_id, temp_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
+            neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
+            if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
+                # starte Musikplayer mit neue Playliste
+                print "starte Musikplayer mit neue Playliste"
+            elif ((neue_uid == True)and(check_verzeichnis(chip_uid)) == False):
+                # Neuer Chip auf leser aber keine Musik vorhanden. Musikplayer stoppen.
+                print "Neuer Chip auf leser aber keine Musik vorhanden. Musikplayer stoppen."
+            elif (chip_uid == "LEER"):
+                # Kein Chip mehr vorhanden, stoppe Musik
+                print "Kein Chip mehr vorhanden, stoppe Musik"
+            else:
+                # Keine Veränderung und eine gültige Musikwiedergabe
+                print "Keine Veränderung und eine gültige Musikwiedergabe mit Chip"
+            '''
             if (temp_neue_id == True)and(check_verzeichnis(temp_uid)) == True: # Neuer Chip wurde erkannt, Verzeichnis und Musik vorhanden
                 chip_auf_leser = 0 # Sobald eine neue Karte
                 print "####################################################"
@@ -157,6 +185,7 @@ def main():
                 else:
                     pass
             # Steuerung Musikplayer
+            '''
             '''
             if pygame.mixer.music.get_busy() == False:
                 if aktuelles_musik_verzeichnis == os.path.join(VERZEICHNIS_DATEN, temp_uid):
