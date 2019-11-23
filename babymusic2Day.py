@@ -21,7 +21,7 @@ INTRO_SOUND = "./data/intro.mp3"
 MUSIK_FORMAT = ".mp3" # Musikformat der Musik.
 NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
 VOLUME_RANGE = 0.05
-VOMUME_START = 50
+VOMUME_START = 0.5
 TASTER_LAUTER = 11
 TASTER_LEISER = 13
 '''---------------------- Variablen -----------------------'''
@@ -37,6 +37,7 @@ aktueller_titel = "LEER"
 
 def init_musikplayer():
     pygame.mixer.init()
+    pygame.mixer.music.set_volume(VOMUME_START)
     if INIT_SOUND == True:
         pygame.mixer.music.load(INTRO_SOUND)
         pygame.mixer.music.play()
