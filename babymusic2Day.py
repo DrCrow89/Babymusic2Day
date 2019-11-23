@@ -11,7 +11,7 @@ import config2Day
 
 '''-------------------- Konfiguration ---------------------'''
 '''--------------------------------------------------------'''
-INIT_SOUND = True
+INIT_SOUND = False
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
 ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
@@ -20,6 +20,10 @@ NAME_LOG_DATEI = "musicfile.log" # Pro Verzeichnis gibt es eine Log Datei um ver
 INTRO_SOUND = "./data/intro.mp3"
 MUSIK_FORMAT = ".mp3" # Musikformat der Musik.
 NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
+VOLUME_RANGE = 0.05
+VOMUME_START = 0.5
+TASTER_LAUTER = 11
+TASTER_LEISER = 13
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
 program_run = True
@@ -31,9 +35,9 @@ aktuelle_playliste = []
 aktueller_titel_index = 0
 aktueller_titel = "LEER"
 
-
 def init_musikplayer():
     pygame.mixer.init()
+    pygame.mixer.music.set_volume(VOMUME_START)
     if INIT_SOUND == True:
         pygame.mixer.music.load(INTRO_SOUND)
         pygame.mixer.music.play()
@@ -59,6 +63,14 @@ def stop_musikplayer(ue_path, ue_titel, ue_spielzeit_offset):
         speicherzeit = (((pygame.mixer.music.get_pos())/1000)+ue_spielzeit_offset) # Die aktuelle Spielzeit richtet sich nur nach dem Playerstart. Nicht nach dem Musikstart und muss daher aufaddiert werden.
         set_musikdaten(ue_path, "Log", ue_titel, speicherzeit)
         pygame.mixer.music.stop()
+
+def increase_volume(ue_gpio_nummer):
+    volume = pygame.mixer.music.get_volume() + VOLUME_RANGE
+    pygame.mixer.music.set_volume(volume)
+
+def decrease_volume(ue_gpio_nummer):
+    volume = pygame.mixer.music.get_volume() - VOLUME_RANGE
+    pygame.mixer.music.set_volume(volume)
 
 def create_playlist_sortiert(ue_verzeichnis):
     playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
@@ -132,6 +144,15 @@ def main():
     spielzeit_offset = 0
 
     init_musikplayer()
+
+    '''----------------------- Button -------------------------'''
+    '''--------------------------------------------------------'''
+    GPIO.setwarnings(False)
+    #GPIO.setmode(GPIO.BOARD) Ist schon über MFRC522 importiert
+    GPIO.setup(TASTER_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(TASTER_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.add_event_detect(TASTER_LAUTER, GPIO.FALLING, callback=increase_volume, bouncetime=300)
+    GPIO.add_event_detect(TASTER_LEISER, GPIO.FALLING, callback=decrease_volume, bouncetime=300)
 
     try:
         while program_run:
