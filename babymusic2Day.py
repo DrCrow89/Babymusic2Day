@@ -4,6 +4,7 @@ import RPi.GPIO as GPIO
 import os, sys, time, subprocess
 import glob, random # Playlisten erstellen
 import shutil # Kopieren der Log-Datei
+import serial # Kommunikation mit Arduino
 sys.path.append('MFRC522-python')
 sys.path.append('pygame')
 import MFRC522, pygame
@@ -11,7 +12,7 @@ import config2Day
 
 '''-------------------- Konfiguration ---------------------'''
 '''--------------------------------------------------------'''
-INIT_SOUND = False
+INIT_SOUND = True
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
 ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
@@ -24,6 +25,7 @@ VOLUME_RANGE = 0.05
 VOMUME_START = 0.5
 TASTER_LAUTER = 11
 TASTER_LEISER = 13
+GPIO_PIN_ARDUINO = 29
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
 program_run = True
@@ -34,6 +36,34 @@ aktuelles_musik_verzeichnis = "LEER"
 aktuelle_playliste = []
 aktueller_titel_index = 0
 aktueller_titel = "LEER"
+verbindung_arduino = False
+status_lichtsteuerung = 0
+
+def set_licht(ue_uid_valid, arduino):
+    global status_lichtsteuerung
+    try:
+        if(status_lichtsteuerung == 0): # Licht wurde initialisiert, geht nach dem Blinken auf dauerhaft grün
+            if((ue_uid_valid == True)and(pygame.mixer.music.get_busy() == True)):
+                status_lichtsteuerung = 1 # starte blinken
+                arduino.write("2")
+                response = arduino.readline()
+                #print response
+            else:
+                pass
+        elif(status_lichtsteuerung == 1): # Musik läuft und das Licht blinkt
+            if(pygame.mixer.music.get_busy() == False):
+                status_lichtsteuerung = 0 # Musik wurde gestoppt und das Licht soll zurück auf dauerhaft grün
+                arduino.write("4")
+                response = arduino.readline()
+                #print response
+            else:
+                pass
+        else:
+            pass
+    except:
+        verbindung_arduino = False
+        GPIO.output(GPIO_PIN_ARDUINO, False)
+        print "Fehler bei der Verbindung zum Arduino nach Start"
 
 def init_musikplayer():
     pygame.mixer.init()
@@ -139,20 +169,38 @@ def main():
     global aktuelle_playliste
     global aktueller_titel
     global aktueller_titel_index
+    global verbindung_arduino
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
     chip_auf_leser = 0
     spielzeit_offset = 0
-
-    init_musikplayer()
 
     '''----------------------- Button -------------------------'''
     '''--------------------------------------------------------'''
     GPIO.setwarnings(False)
     #GPIO.setmode(GPIO.BOARD) Ist schon über MFRC522 importiert
+    GPIO.setup(GPIO_PIN_ARDUINO, GPIO.OUT) #Ansteuerung Arduino
+    GPIO.output(GPIO_PIN_ARDUINO, False)
     GPIO.setup(TASTER_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(TASTER_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.add_event_detect(TASTER_LAUTER, GPIO.FALLING, callback=increase_volume, bouncetime=300)
     GPIO.add_event_detect(TASTER_LEISER, GPIO.FALLING, callback=decrease_volume, bouncetime=300)
+
+    try:
+        GPIO.output(GPIO_PIN_ARDUINO, True)
+        time.sleep(5)
+        arduino = serial.Serial('/dev/ttyUSB0', 9600)
+        arduino.isOpen()
+        time.sleep(5)
+        verbindung_arduino = True
+        arduino.write("1")
+        response = arduino.readline()
+        #print response
+    except:
+        verbindung_arduino = False
+        GPIO.output(GPIO_PIN_ARDUINO, False)
+        print "Fehler bei der Verbindung zum Arduino"
+
+    init_musikplayer()
 
     try:
         while program_run:
@@ -211,16 +259,22 @@ def main():
             else:
                 pass
 
+            # Steuerung Licht
+            if(verbindung_arduino == True):
+                set_licht(check_verzeichnis(chip_uid), arduino) # Übergebe die Info ob ein gültiges Verzeichnis ausgewählt ist und Musik daraus gespielt werden kann
+
             time.sleep(ZYKLUSZEIT_MAIN)
 
     except KeyboardInterrupt:
         GPIO.cleanup()
         pygame.mixer.music.stop()
+        arduino.close()
         print "Programm beendet"
 
     except:
         GPIO.cleanup()
         pygame.mixer.music.stop()
+        arduino.close()
         print "Programmfehler: " + str(sys.exc_info()[0])
 
 if __name__ == "__main__":
