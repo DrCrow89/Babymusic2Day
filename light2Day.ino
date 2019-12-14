@@ -1,6 +1,6 @@
 #include "FastLED.h"
 
-#define NUM_LEDS 5
+#define NUM_LEDS 4
 #define DATA_PIN 3
 #define CLOCK_PIN 13
 
@@ -10,6 +10,7 @@ const int INIT_LOOPS = 5;
 
 int musik_laeuft = 0;
 int do_nothing = 0;
+int akt_hell = 0;
 
 // Define the array of leds
 CRGB leds[NUM_LEDS];
@@ -50,17 +51,19 @@ void licht_0_to_max()
     FastLED.show();
     delay(MAX_HELLIGKEIT_TIME);
   }
+  akt_hell = 1;
 }
 
 void licht_max_to_0()
 {
-  for(int j = MAX_HELLIGKEIT; j > 1; j--)
+  for(int j = MAX_HELLIGKEIT-1; j > 1; j--)
   {
     // Runterdimmen
     FastLED.setBrightness(j);
     FastLED.show();
     delay(MAX_HELLIGKEIT_TIME);
   }
+  akt_hell = 0;
 }
 
 void licht_off()
@@ -115,6 +118,7 @@ void loop()
     {
       musik_laeuft = 1;
       Serial.println("2");
+      licht_max_to_0();
     }
     else if(empfangen == 51) // Sicht auf runterdimmen
     {
@@ -137,11 +141,20 @@ void loop()
     }
   }
 
-  if(musik_laeuft == 1)
+  if(  (musik_laeuft == 1)
+     &&(akt_hell == 0)
+    )
   {
     set_color(0, 255, 0);
-    pulsieren();
+    licht_0_to_max();
+  }
+  if(  (musik_laeuft == 1)
+     &&(akt_hell == 1)
+    )
+  {
+    set_color(0, 255, 0);
+    licht_max_to_0();
   }
   do_nothing = 0;
-  delay(300);
+  delay(10);
 }

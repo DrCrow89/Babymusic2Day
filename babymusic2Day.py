@@ -13,6 +13,7 @@ import config2Day
 '''-------------------- Konfiguration ---------------------'''
 '''--------------------------------------------------------'''
 INIT_SOUND = True
+DEBUG_MODE = False
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
 ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
@@ -23,9 +24,10 @@ MUSIK_FORMAT = ".mp3" # Musikformat der Musik.
 NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
 VOLUME_RANGE = 0.05
 VOMUME_START = 0.5
-TASTER_LAUTER = 11
-TASTER_LEISER = 13
+TASTER_LAUTER = 31
+TASTER_LEISER = 33
 GPIO_PIN_ARDUINO = 29
+GPIO_PIN_SHUTDOWN = 11 # Wird gebraucht, dass der Port wieder auf BCM gestellt wird und das shutdown Skript von OnOffShim wieder funktioniert.
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
 program_run = True
@@ -89,7 +91,8 @@ def stop_musikplayer_hart():
 
 def stop_musikplayer(ue_path, ue_titel, ue_spielzeit_offset):
     if pygame.mixer.music.get_busy() == True:
-        print "Speichern"
+        if DEBUG_MODE == True:
+            print "Speichern"
         speicherzeit = (((pygame.mixer.music.get_pos())/1000)+ue_spielzeit_offset) # Die aktuelle Spielzeit richtet sich nur nach dem Playerstart. Nicht nach dem Musikstart und muss daher aufaddiert werden.
         set_musikdaten(ue_path, "Log", ue_titel, speicherzeit)
         pygame.mixer.music.stop()
@@ -97,10 +100,12 @@ def stop_musikplayer(ue_path, ue_titel, ue_spielzeit_offset):
 def increase_volume(ue_gpio_nummer):
     volume = pygame.mixer.music.get_volume() + VOLUME_RANGE
     pygame.mixer.music.set_volume(volume)
+    print pygame.mixer.music.get_volume()
 
 def decrease_volume(ue_gpio_nummer):
     volume = pygame.mixer.music.get_volume() - VOLUME_RANGE
     pygame.mixer.music.set_volume(volume)
+    print pygame.mixer.music.get_volume()
 
 def create_playlist_sortiert(ue_verzeichnis):
     playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
@@ -180,17 +185,18 @@ def main():
     #GPIO.setmode(GPIO.BOARD) Ist schon über MFRC522 importiert
     GPIO.setup(GPIO_PIN_ARDUINO, GPIO.OUT) #Ansteuerung Arduino
     GPIO.output(GPIO_PIN_ARDUINO, False)
-    GPIO.setup(TASTER_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(TASTER_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(TASTER_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(TASTER_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(GPIO_PIN_SHUTDOWN, GPIO.IN)
     GPIO.add_event_detect(TASTER_LAUTER, GPIO.FALLING, callback=increase_volume, bouncetime=300)
     GPIO.add_event_detect(TASTER_LEISER, GPIO.FALLING, callback=decrease_volume, bouncetime=300)
+    #GPIO.add_event_detect(GPIO_PIN_SHUTDOWN, GPIO.FALLING, callback=count_shutdown, bouncetime=300)
 
     try:
         GPIO.output(GPIO_PIN_ARDUINO, True)
-        time.sleep(5)
         arduino = serial.Serial('/dev/ttyUSB0', 9600)
         arduino.isOpen()
-        time.sleep(5)
+        time.sleep(2) # Alternativ 5 Sekunden, der PI versorgt den Arduino schon von Anfang an mit Strom.
         verbindung_arduino = True
         arduino.write("1")
         response = arduino.readline()
@@ -208,7 +214,8 @@ def main():
             neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
                 # starte Musikplayer mit neue Playliste
-                print "starte Musikplayer mit neue Playliste"
+                if DEBUG_MODE == True:
+                    print "starte Musikplayer mit neue Playliste"
                 if (chip_uid == "LEER"):
                     stop_musikplayer_hart()
                 else:
@@ -217,7 +224,8 @@ def main():
                 aktuelles_musik_verzeichnis = os.path.join(VERZEICHNIS_DATEN, chip_uid)
                 erfolgreich_gelesen, musiktyp = config2Day.get_value(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Grundeinstellung", "Typ")
                 if ((erfolgreich_gelesen == True)and(musiktyp == "Hoerspiel")):
-                    print "Titel ist ein Hörspiel und wird nicht gemischt"
+                    if DEBUG_MODE == True:
+                        print "Titel ist ein Hörspiel und wird nicht gemischt"
                     aktuelle_playliste = create_playlist_sortiert(aktuelles_musik_verzeichnis)
                     erfolgreich_gelesen_1, aktueller_titel = config2Day.get_value(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Log", "letzter_titel")
                     erfolgreich_gelesen_2, spielzeit_offset = config2Day.get_value_int(os.path.join(VERZEICHNIS_DATEN, chip_uid, NAME_LOG_DATEI), "Log", "letzte_stelle")
@@ -228,7 +236,8 @@ def main():
                     else:
                         aktueller_titel_index = aktuelle_playliste.index(aktueller_titel)
                 elif ((erfolgreich_gelesen == True)and(musiktyp == "Musik")):
-                    print "Titel ist ein Musikalbum und wird gemischt"
+                    if DEBUG_MODE == True:
+                        print "Titel ist ein Musikalbum und wird gemischt"
                     aktuelle_playliste = create_playlist_random(aktuelles_musik_verzeichnis)
                     aktueller_titel = random.choice(aktuelle_playliste)
                     aktueller_titel_index = aktuelle_playliste.index(aktueller_titel)
@@ -253,7 +262,8 @@ def main():
                 spielzeit_offset = 0
                 if aktueller_titel_index == len(aktuelle_playliste):
                     aktueller_titel_index = 0
-                print "Nächster Titel"
+                if DEBUG_MODE == True:
+                    print "Nächster Titel"
                 aktueller_titel = aktuelle_playliste[aktueller_titel_index]
                 start_musikplayer(aktuelle_playliste, aktuelle_playliste[aktueller_titel_index], 0)
             else:
@@ -268,13 +278,15 @@ def main():
     except KeyboardInterrupt:
         GPIO.cleanup()
         pygame.mixer.music.stop()
-        arduino.close()
+        if verbindung_arduino == True:
+            arduino.close()
         print "Programm beendet"
 
     except:
         GPIO.cleanup()
         pygame.mixer.music.stop()
-        arduino.close()
+        if verbindung_arduino == True:
+            arduino.close()
         print "Programmfehler: " + str(sys.exc_info()[0])
 
 if __name__ == "__main__":
