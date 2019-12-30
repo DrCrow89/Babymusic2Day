@@ -25,10 +25,10 @@ def FlagPiIsAlive(name):
     alive_flag = True
     while getattr(t, "do_run", True):
         if alive_flag == True:
-            GPIO.output(GPIO_PIN_ALIVE, False)
+            GPIO.output(GPIO_PIN_ALIVE, True)
             alive_flag = False
         else:
-            GPIO.output(GPIO_PIN_ALIVE, True)
+            GPIO.output(GPIO_PIN_ALIVE, False)
             alive_flag = True
         time.sleep(ZYKLUSZEIT_ALIVE)
 
