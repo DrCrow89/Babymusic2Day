@@ -9,15 +9,18 @@ ZYKLUSZEIT_MAIN = 0.1 # Zykluszeit des Programms sind 100ms
 ZYKLUSZEIT_ALIVE = 0.9 # Zykluszeit für das senden des Alive Flags
 GPIO_PIN_ALIVE = 11 # Pi Alive Flag für Energie-Kontroller
 GPIO_PIN_SHUTDOWN = 13 # Input Pin zum herunterfahren des Pi
+GPIO_PIN_LAUTER = 15 # Input Pin für Taster einlesen
 '''--------------------------------------------------------'''
 '''------------------ GPIO Einstellungen ------------------'''
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(GPIO_PIN_ALIVE, GPIO.OUT)
 GPIO.setup(GPIO_PIN_SHUTDOWN, GPIO.IN)
+GPIO.setup(GPIO_PIN_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 '''--------------------------------------------------------'''
 '''------------------ Support Funktionen ------------------'''
-
+def button_callback(channel):
+    print("Button was pushed!")
 '''--------------------------------------------------------'''
 '''------------------- Thread Funktionen ------------------'''
 def FlagPiIsAlive(name):
@@ -35,6 +38,8 @@ def FlagPiIsAlive(name):
 '''--------------------------------------------------------'''
 '''--------------------- Hauptprogramm --------------------'''
 def main():
+    GPIO.add_event_detect(GPIO_PIN_LAUTER,GPIO.RISING,callback=button_callback,bouncetime=800)
+
     try:
         t_pi_alive = threading.Thread(target=FlagPiIsAlive, args=("Pi is alive",))
         t_pi_alive.start()

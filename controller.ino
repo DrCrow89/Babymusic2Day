@@ -5,6 +5,7 @@ const int BUTTON_POWER = 11;                   // Pin Button Power
 const int BUTTON_POWER_LED = 10;               // Pin LED Licht des Button Power
 const int PI_ONLINE = 9;                       // Pin Eingang für Pi Kummunikation
 const int S_COMMAND_PI_SHUTDOWN = 8;           // Pin zum senden des shutdown-Befehls an den Pi
+const int R_MUSIC_PLAY = 7;                    // Pin zum empfangen ob Musik abgespielt wird
 
 const int BUTTON_PRESS_THR = 5;                // Taster muss ca. 500ms gedrückt werden, dass aktiv etwas erkannt wird.
 const int BUTTON_PRESS_HARD_OFF_THR = 40;      // Taster muss ca. 4s gedrückt werden, dass der Hard-Reset erkannt wird.
@@ -212,6 +213,10 @@ void setup()
   pinMode(RELAIS_PI_POWER, OUTPUT);
   pinMode(PI_ONLINE, INPUT);
   pinMode(LED_ALIVE, OUTPUT);
+  digitalWrite(LED_ALIVE, LOW);
+  pinMode(S_COMMAND_PI_SHUTDOWN, OUTPUT);
+  digitalWrite(S_COMMAND_PI_SHUTDOWN, LOW);
+  pinMode(R_MUSIC_PLAY, INPUT);
   status_pi = PI_OFF; // Wird der Arduino gestartet, ist das Relais immer aus
 }
 
