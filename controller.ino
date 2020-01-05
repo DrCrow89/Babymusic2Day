@@ -210,7 +210,9 @@ void setup()
   Serial.begin(9600);
   pinMode(BUTTON_POWER, INPUT_PULLUP);
   pinMode(BUTTON_POWER_LED, OUTPUT);
+  digitalWrite(BUTTON_POWER_LED, LOW);
   pinMode(RELAIS_PI_POWER, OUTPUT);
+  digitalWrite(RELAIS_PI_POWER, LOW);
   pinMode(PI_ONLINE, INPUT);
   pinMode(LED_ALIVE, OUTPUT);
   digitalWrite(LED_ALIVE, LOW);
@@ -218,6 +220,7 @@ void setup()
   digitalWrite(S_COMMAND_PI_SHUTDOWN, LOW);
   pinMode(R_MUSIC_PLAY, INPUT);
   status_pi = PI_OFF; // Wird der Arduino gestartet, ist das Relais immer aus
+  Serial.print("Start\n");
 }
 
 void loop()
