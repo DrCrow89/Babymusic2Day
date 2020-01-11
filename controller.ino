@@ -1,3 +1,9 @@
+#include "FastLED.h"
+
+#define NUM_LEDS 4
+#define DATA_PIN 2
+#define CLOCK_PIN 3
+
 const int ZYKLUSZEIT_MAIN = 100;               // Zykluszeit des Arduinoprogramms (nur ein grober Richtwert und natürlich abhängig vom Programm)
 const int LED_ALIVE = 13;                      // Pin Arduino und Pi alive Status LED
 const int RELAIS_PI_POWER = 12;                // Pin Relais zum einschalten des Pi
@@ -5,7 +11,8 @@ const int BUTTON_POWER = 11;                   // Pin Button Power
 const int BUTTON_POWER_LED = 10;               // Pin LED Licht des Button Power
 const int PI_ONLINE = 9;                       // Pin Eingang für Pi Kummunikation
 const int S_COMMAND_PI_SHUTDOWN = 8;           // Pin zum senden des shutdown-Befehls an den Pi
-const int R_MUSIC_PLAY = 7;                    // Pin zum empfangen ob Musik abgespielt wird
+const int R_MUSIC_PLAY = 5;                    // Pin zum empfangen ob Musik abgespielt wird
+const int R_LIGHT_MUTE = 4;                    // Pin zum empfangen ob das Licht angezeigt werden soll oder nicht
 
 const int BUTTON_PRESS_THR = 5;                // Taster muss ca. 500ms gedrückt werden, dass aktiv etwas erkannt wird.
 const int BUTTON_PRESS_HARD_OFF_THR = 40;      // Taster muss ca. 4s gedrückt werden, dass der Hard-Reset erkannt wird.
@@ -22,6 +29,14 @@ enum piStatus
   PI_SHUTDOWN  // Raspberry Pi hat den Befehl zum runterfahren bekommen
 };
 
+enum piLightStatus
+{
+  LIGHT_OFF,
+  LIGHT_INIT,
+  LIGHT_ON,
+  LIGHT_MUSIC_PLAY
+};
+
 /* ------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------ */
 /* --------------------- Kommunikation von Arduino und dem Raspberry Pi --------------------- */
@@ -34,7 +49,8 @@ int timer_h = TIMER_ALIVE_PI;             // Ablaufzähler für HIGH-Level from 
 int timer_l = TIMER_ALIVE_PI;             // Ablaufzähler für LOW-Level from Pi
 int communication_pi_activ = 0;           // Am Anfang kann noch keine Kommunikation mit dem PI stattfinden
 enum piStatus status_pi;                  // Aktueller Status des Raspberry Pi
-
+enum piLightStatus status_light;          // Aktueller Status der Lichtsteuerung
+CRGB leds[NUM_LEDS];
 /* ------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------ */
 /* ---------------------------------------- Variablen --------------------------------------- */
@@ -43,7 +59,14 @@ int button_state_power = 0;               // Temp. Einlese-Variable für Power B
 unsigned long button_counter_power = 0;   // Counter Power Button betätigt Variable
 int restart_after_hardreset = 0;          // Nach einem Hard-Reset muss erst eine Zeit Ablaufen, dass erneut eingeschaltet werden kann.
 int release_button_to_con = 1;            // Nach einem Hard-Reset muss der Butten zuerst einmal losgelassen werden, dass erneut gestartet werden kann.
-
+/* ------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------ */
+/* ------------------------------ Variablen für die Lichtsteuerung--------------------------- */
+/* ------------------------------------------------------------------------------------------ */
+const int MAX_HELLIGKEIT = 128; // 256 = 100% --> 80 = ca. 30% --> 128 = 50%
+const int TIME_BETWEEN_LED = 3;  // 3 Zyklen zwischen dem LED wechsel beim Init-Prozess
+int schleifen_zaehler_licht = 0;
+int aktuelle_led = 0;
 /* ------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------ */
 /* ---------------------------------------- Programm ---------------------------------------- */
@@ -98,6 +121,7 @@ void check_status_pi()
   switch (status_pi)
   {
     case PI_OFF:
+      status_light = LIGHT_OFF;
       startup_pi_counter = 0;
       counter_lost_comm = 0;
       counter_shutdown_pi = 0;
@@ -124,6 +148,7 @@ void check_status_pi()
     break;
 
     case PI_STARTING:
+      status_light = LIGHT_INIT;
       // Kommunikation mit dem Pi ist da
       if(communication_pi_activ == 1)
       {
@@ -205,9 +230,49 @@ void check_status_pi()
   }
 }
 
+void check_status_light()
+{
+  switch (status_light)
+  {
+    case LIGHT_OFF:
+      for(int i = 0; i < NUM_LEDS; i++)
+      {
+        leds[i] = CRGB(0, 0, 0);
+      }
+      FastLED.show();
+    break;
+    case LIGHT_INIT:
+      FastLED.setBrightness(MAX_HELLIGKEIT);
+      if(schleifen_zaehler_licht < TIME_BETWEEN_LED)
+      {
+        schleifen_zaehler_licht = schleifen_zaehler_licht +1;
+      }
+      else
+      {
+        leds[aktuelle_led] = CRGB(0, 0, 255);
+        FastLED.show();
+        leds[aktuelle_led] = CRGB(0, 0, 0);
+        if(aktuelle_led < NUM_LEDS -1)
+        {
+          aktuelle_led = aktuelle_led +1;
+        }
+        else
+        {
+          aktuelle_led = 0;
+        }
+        schleifen_zaehler_licht = 0;
+      }
+    break;
+    //case LIGHT_ON:
+    //break;
+    //case LIGHT_MUSIC_PLAY:
+    //break;
+  }
+}
 void setup()
 {
   Serial.begin(9600);
+  FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN, RGB>(leds, NUM_LEDS);
   pinMode(BUTTON_POWER, INPUT_PULLUP);
   pinMode(BUTTON_POWER_LED, OUTPUT);
   digitalWrite(BUTTON_POWER_LED, LOW);
@@ -220,6 +285,7 @@ void setup()
   digitalWrite(S_COMMAND_PI_SHUTDOWN, LOW);
   pinMode(R_MUSIC_PLAY, INPUT);
   status_pi = PI_OFF; // Wird der Arduino gestartet, ist das Relais immer aus
+  status_light = LIGHT_OFF; // Wird der Arduino gestartet, ist das Licht aus
   Serial.print("Start\n");
 }
 
@@ -229,6 +295,7 @@ void loop()
   check_button_power();
   check_status_pi();
   check_commun_pi();
+  check_status_light();
   /*
    * Zykluszeit des Programms muss begrenzt werden.
    * Manuelle Messung hat gepasst. 10s waren 101 Zyklen.
