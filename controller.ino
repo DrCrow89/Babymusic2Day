@@ -70,6 +70,7 @@ int schleifen_zaehler_licht = 0;
 int aktuelle_led = 0;
 int aktuelle_helligkeit = 0;
 int richtung_dimmen_licht = 0; // Soll gerade hochgedimmt werden oder herunter beim Musikabspielen. 0-->runterdimmen, 1-->hochdimmen
+int licht_ausschalten = 0;
 /* ------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------ */
 /* ---------------------------------------- Programm ---------------------------------------- */
@@ -291,7 +292,7 @@ void check_status_light()
     case LIGHT_MUSIC_PLAY:
       if(richtung_dimmen_licht == 0) //runterdimmen
       {
-        aktuelle_helligkeit = aktuelle_helligkeit -2;
+        aktuelle_helligkeit = aktuelle_helligkeit -4;
         if(aktuelle_helligkeit > 4)
         {
           FastLED.setBrightness(aktuelle_helligkeit);
@@ -304,7 +305,7 @@ void check_status_light()
       }
       else //hochdimmen
       {
-        aktuelle_helligkeit = aktuelle_helligkeit +2;
+        aktuelle_helligkeit = aktuelle_helligkeit +4;
         if(aktuelle_helligkeit < MAX_HELLIGKEIT)
         {
           FastLED.setBrightness(aktuelle_helligkeit);
@@ -345,6 +346,7 @@ void setup()
   pinMode(S_COMMAND_PI_SHUTDOWN, OUTPUT);
   digitalWrite(S_COMMAND_PI_SHUTDOWN, LOW);
   pinMode(R_MUSIC_PLAY, INPUT);
+  pinMode(R_LIGHT_MUTE, INPUT);
   status_pi = PI_OFF; // Wird der Arduino gestartet, ist das Relais immer aus
   status_light = LIGHT_OFF; // Wird der Arduino gestartet, ist das Licht aus
   Serial.print("Start\n");
@@ -356,8 +358,23 @@ void loop()
   check_button_power();
   check_status_pi();
   check_commun_pi();
-  //check_commun_light();
-  check_status_light();
+  if(digitalRead(R_LIGHT_MUTE) == HIGH)
+  {
+    check_status_light();
+    licht_ausschalten = 1;
+  }
+  else
+  {
+    if(licht_ausschalten == 1)
+    {
+      for(int i = 0; i < NUM_LEDS; i++)
+      {
+        leds[i] = CRGB(0, 0, 0);
+      }
+      FastLED.show();
+    }
+  }
+
   /*
    * Zykluszeit des Programms muss begrenzt werden.
    * Manuelle Messung hat gepasst. 10s waren 101 Zyklen.

@@ -16,15 +16,17 @@ INIT_SOUND = False
 DEBUG_MODE = True
 '''--------------------------------------------------------'''
 '''---------------------- Konstanten ----------------------'''
-ZYKLUSZEIT_MAIN = 0.1     # Zykluszeit des Programms sind 100ms
-ZYKLUSZEIT_ALIVE = 0.9    # Zykluszeit für das senden des Alive Flags
-GPIO_PIN_ALIVE = 7        # Pi Alive Flag für Energie-Kontroller
-GPIO_PIN_SHUTDOWN = 11    # Input Pin zum herunterfahren des Pi
-GPIO_PIN_BUTTON_MUTE = 13 # Input Pin Lautstärketasten aus- oder einschalten
-GPIO_PIN_LIGHT_MUTE = 15  # Input Pin zum ein- und ausschalten der Beleuchtung
-GPIO_PIN_LAUTER = 29      # Input Pin für lauter - Button
-GPIO_PIN_LEISER = 31      # Input Pin für leiser - Button
-GPIO_PIN_MUSIC_ACTIV = 33 # Output Pin Lichtsteuerung
+# Pins 3, 5, 11, 12, 35, 38, 40 können und dürfen nicht benutzt werden
+ZYKLUSZEIT_MAIN = 0.1      # Zykluszeit des Programms sind 100ms
+ZYKLUSZEIT_ALIVE = 0.9     # Zykluszeit für das senden des Alive Flags
+GPIO_PIN_ALIVE = 7         # Pi Alive Flag für Energie-Kontroller
+GPIO_PIN_SHUTDOWN = 36     # Input Pin zum herunterfahren des Pi
+GPIO_PIN_BUTTON_MUTE = 13  # Input Pin Lautstärketasten aus- oder einschalten
+GPIO_PIN_LIGHT_MUTE = 15   # Input Pin zum ein- und ausschalten der Beleuchtung
+GPIO_PIN_LAUTER = 29       # Input Pin für lauter - Button
+GPIO_PIN_LEISER = 31       # Input Pin für leiser - Button
+GPIO_PIN_MUSIC_ACTIV = 33  # Output Pin Lichtsteuerung
+GPIO_PIN_LIGHT_ACTIV = 37 # Output Pin um Licht komplett auszuschalten
 
 INTRO_SOUND = "./data/intro.mp3"
 VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
@@ -39,6 +41,7 @@ NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal g
 '''---------------------- Variablen -----------------------'''
 global switch_button_mute # Variable zum einlesen des Schalters um die Lautstärketasten einzulesen
 global switch_light_mute  # Variable zum einlesen des Schalters um die Lichtsteuerung ein- oder auszuschalten
+program_run = True
 nio_read_counter = 0
 aktuelle_chip_uid = "LEER"
 letzte_gueltige_chip_uid = "LEER"
@@ -58,7 +61,8 @@ GPIO.setup(GPIO_PIN_LIGHT_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(GPIO_PIN_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(GPIO_PIN_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(GPIO_PIN_MUSIC_ACTIV, GPIO.OUT)
-
+GPIO.setup(GPIO_PIN_LIGHT_ACTIV, GPIO.OUT)
+GPIO.output(GPIO_PIN_LIGHT_ACTIV, True)
 '''--------------------------------------------------------'''
 '''---------------- Musikplayer Funktionen ----------------'''
 def init_musikplayer():
@@ -124,9 +128,11 @@ def mute_volume_button(ue_gpio_nummer):
 def mute_light(ue_gpio_nummer):
     if GPIO.input(GPIO_PIN_LIGHT_MUTE) == True:
         switch_light_mute = True
+        GPIO.output(GPIO_PIN_LIGHT_ACTIV, True)
         print "Schalter für Lichtsteuerung an"
     else:
         switch_light_mute = False
+        GPIO.output(GPIO_PIN_LIGHT_ACTIV, False)
         print "Schalter für Lichtsteuerung aus"
 
 def set_light():
@@ -232,7 +238,7 @@ def FlagPiIsAlive(name):
 '''--------------------------------------------------------'''
 '''--------------------- Hauptprogramm --------------------'''
 def main():
-
+    global program_run
     global aktuelles_musik_verzeichnis
     global aktuelle_playliste
     global aktueller_titel
@@ -252,13 +258,10 @@ def main():
         t_pi_alive.start()
         init_musikplayer()
         print "Hauptprogram start"
-        while True:
+        while program_run:
             if GPIO.input(GPIO_PIN_SHUTDOWN) == GPIO.HIGH:
-                pass
-                #t_pi_alive.do_run = False
-                #t_pi_alive.join()
-                #GPIO.cleanup()
-                #os.system("sudo shutdown -h now")
+                program_run = False
+                print "Shutdown-Befehl empfangen"
 
             neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
@@ -318,8 +321,14 @@ def main():
                 pass
 
             set_light()
-
             time.sleep(ZYKLUSZEIT_MAIN)
+
+        print "Programm beenden"
+        stop_musikplayer(os.path.join(aktuelles_musik_verzeichnis, NAME_LOG_DATEI), aktueller_titel, spielzeit_offset)
+        t_pi_alive.do_run = False
+        t_pi_alive.join()
+        GPIO.cleanup()
+        os.system("sudo shutdown -h now")
 
     except KeyboardInterrupt:
         t_pi_alive.do_run = False
