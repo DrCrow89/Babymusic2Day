@@ -112,23 +112,22 @@ def decrease_volume(ue_gpio_nummer):
 
 def mute_volume_button(ue_gpio_nummer):
     global switch_button_mute
-    if switch_button_mute == True:
+    if GPIO.input(GPIO_PIN_BUTTON_MUTE) == True:
+        switch_button_mute = True
+        print "Schalter für Lautstärketasten an"
+    else:
         switch_button_mute = False
         print "Schalter für Lautstärketasten aus"
-    else:
-        switch_button_mute = True
-        print "Schalter für Lautstärketasten ein"
 
 '''--------------------------------------------------------'''
 '''-------------- Lichtsteuerung Funktionen ---------------'''
 def mute_light(ue_gpio_nummer):
-    global switch_light_mute
-    if switch_light_mute == True:
-        switch_light_mute = False
-        print "Schalter für Lichtsteuerung war aus"
-    else:
+    if GPIO.input(GPIO_PIN_LIGHT_MUTE) == True:
         switch_light_mute = True
-        print "Schalter für Lichtsteuerung war ein"
+        print "Schalter für Lichtsteuerung an"
+    else:
+        switch_light_mute = False
+        print "Schalter für Lichtsteuerung aus"
 
 def set_light():
     if(pygame.mixer.music.get_busy() == True):
@@ -245,8 +244,8 @@ def main():
     read_config_switch()
     GPIO.add_event_detect(GPIO_PIN_LAUTER,GPIO.RISING,callback=increase_volume,bouncetime=800)
     GPIO.add_event_detect(GPIO_PIN_LEISER,GPIO.RISING,callback=decrease_volume,bouncetime=800)
-    GPIO.add_event_detect(GPIO_PIN_BUTTON_MUTE,GPIO.BOTH,callback=mute_volume_button,bouncetime=1000)
-    GPIO.add_event_detect(GPIO_PIN_LIGHT_MUTE,GPIO.BOTH,callback=mute_light,bouncetime=1000)
+    GPIO.add_event_detect(GPIO_PIN_BUTTON_MUTE,GPIO.BOTH,callback=mute_volume_button,bouncetime=500)
+    GPIO.add_event_detect(GPIO_PIN_LIGHT_MUTE,GPIO.BOTH,callback=mute_light,bouncetime=500)
 
     try:
         t_pi_alive = threading.Thread(target=FlagPiIsAlive, args=("Pi is alive",))
