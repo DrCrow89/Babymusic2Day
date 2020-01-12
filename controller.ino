@@ -34,7 +34,8 @@ enum piLightStatus
   LIGHT_OFF,
   LIGHT_INIT,
   LIGHT_ON,
-  LIGHT_MUSIC_PLAY
+  LIGHT_MUSIC_PLAY,
+  LIGHT_TO_OFF
 };
 
 /* ------------------------------------------------------------------------------------------ */
@@ -67,6 +68,7 @@ const int MAX_HELLIGKEIT = 128; // 256 = 100% --> 80 = ca. 30% --> 128 = 50%
 const int TIME_BETWEEN_LED = 3;  // 3 Zyklen zwischen dem LED wechsel beim Init-Prozess
 int schleifen_zaehler_licht = 0;
 int aktuelle_led = 0;
+int aktuelle_helligkeit = 0;
 /* ------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------ */
 /* ---------------------------------------- Programm ---------------------------------------- */
@@ -179,6 +181,7 @@ void check_status_pi()
     break;
 
     case PI_ON:
+      status_light = LIGHT_ON;
       // Keine Kommunikation mehr vorhanden. Pi wird eventuell heruntergefahren oder hat sich aufgehangen
       if(  (communication_pi_activ == 0)
          &&(counter_lost_comm < TIMER_ON_TO_OFF)
@@ -208,6 +211,7 @@ void check_status_pi()
     break;
 
     case PI_SHUTDOWN:
+      status_light = LIGHT_TO_OFF;
       if(counter_shutdown_pi < TIMER_ON_TO_OFF)
       {
         counter_shutdown_pi = counter_shutdown_pi + 1;
@@ -235,6 +239,7 @@ void check_status_light()
   switch (status_light)
   {
     case LIGHT_OFF:
+      FastLED.setBrightness(0);
       for(int i = 0; i < NUM_LEDS; i++)
       {
         leds[i] = CRGB(0, 0, 0);
@@ -263,10 +268,28 @@ void check_status_light()
         schleifen_zaehler_licht = 0;
       }
     break;
-    //case LIGHT_ON:
-    //break;
+    case LIGHT_ON:
+      for(int i = 0; i < NUM_LEDS; i++)
+      {
+        leds[i] = CRGB(0, 255, 0);
+      }
+      if(aktuelle_helligkeit < MAX_HELLIGKEIT)
+      {
+        aktuelle_helligkeit = aktuelle_helligkeit +1;
+        FastLED.setBrightness(aktuelle_helligkeit);
+        FastLED.show();
+      }
+    break;
     //case LIGHT_MUSIC_PLAY:
     //break;
+    case LIGHT_TO_OFF:
+      if(aktuelle_helligkeit > 0)
+      {
+        aktuelle_helligkeit = aktuelle_helligkeit -1;
+        FastLED.setBrightness(aktuelle_helligkeit);
+        FastLED.show();
+      }
+    break;
   }
 }
 void setup()
@@ -295,6 +318,7 @@ void loop()
   check_button_power();
   check_status_pi();
   check_commun_pi();
+  //check_commun_light();
   check_status_light();
   /*
    * Zykluszeit des Programms muss begrenzt werden.
