@@ -96,18 +96,19 @@ def main():
 
     GPIO.add_event_detect(GPIO_PIN_LAUTER,GPIO.RISING,callback=increase_volume,bouncetime=800)
     GPIO.add_event_detect(GPIO_PIN_LEISER,GPIO.RISING,callback=decrease_volume,bouncetime=800)
-    GPIO.add_event_detect(GPIO_PIN_BUTTON_MUTE,GPIO.BOTH,callback=mute_volume_button,bouncetime=100)
-    GPIO.add_event_detect(GPIO_PIN_LIGHT_MUTE,GPIO.BOTH,callback=mute_light,bouncetime=100)
+    GPIO.add_event_detect(GPIO_PIN_BUTTON_MUTE,GPIO.BOTH,callback=mute_volume_button,bouncetime=1000)
+    GPIO.add_event_detect(GPIO_PIN_LIGHT_MUTE,GPIO.BOTH,callback=mute_light,bouncetime=1000)
 
     try:
         t_pi_alive = threading.Thread(target=FlagPiIsAlive, args=("Pi is alive",))
         t_pi_alive.start()
         while True:
             if GPIO.input(GPIO_PIN_SHUTDOWN) == GPIO.HIGH:
-                t_pi_alive.do_run = False
-                t_pi_alive.join()
-                GPIO.cleanup()
-                os.system("sudo shutdown -h now")
+                pass
+                #t_pi_alive.do_run = False
+                #t_pi_alive.join()
+                #GPIO.cleanup()
+                #os.system("sudo shutdown -h now")
             time.sleep(ZYKLUSZEIT_MAIN)
 
     except KeyboardInterrupt:
