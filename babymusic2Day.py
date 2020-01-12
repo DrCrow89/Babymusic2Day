@@ -24,6 +24,7 @@ GPIO_PIN_BUTTON_MUTE = 13 # Input Pin Lautstärketasten aus- oder einschalten
 GPIO_PIN_LIGHT_MUTE = 15  # Input Pin zum ein- und ausschalten der Beleuchtung
 GPIO_PIN_LAUTER = 29      # Input Pin für lauter - Button
 GPIO_PIN_LEISER = 31      # Input Pin für leiser - Button
+GPIO_PIN_MUSIC_ACTIV = 33 # Output Pin Lichtsteuerung
 
 INTRO_SOUND = "./data/intro.mp3"
 VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
@@ -45,7 +46,7 @@ aktuelles_musik_verzeichnis = "LEER"
 aktuelle_playliste = []
 aktueller_titel_index = 0
 aktueller_titel = "LEER"
-
+musik_aktiv_letzte_loop = False
 '''--------------------------------------------------------'''
 '''------------------ GPIO Einstellungen ------------------'''
 GPIO.setwarnings(False)
@@ -56,6 +57,8 @@ GPIO.setup(GPIO_PIN_BUTTON_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(GPIO_PIN_LIGHT_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(GPIO_PIN_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 GPIO.setup(GPIO_PIN_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(GPIO_PIN_MUSIC_ACTIV, GPIO.OUT)
+
 '''--------------------------------------------------------'''
 '''---------------- Musikplayer Funktionen ----------------'''
 def init_musikplayer():
@@ -126,6 +129,12 @@ def mute_light(ue_gpio_nummer):
     else:
         switch_light_mute = True
         print "Schalter für Lichtsteuerung war ein"
+
+def set_light():
+    if(pygame.mixer.music.get_busy() == True):
+        GPIO.output(GPIO_PIN_MUSIC_ACTIV, True)
+    else:
+        GPIO.output(GPIO_PIN_MUSIC_ACTIV, False)
 
 '''--------------------------------------------------------'''
 '''------------------ Support Funktionen ------------------'''
@@ -309,6 +318,7 @@ def main():
             else:
                 pass
 
+            set_light()
 
             time.sleep(ZYKLUSZEIT_MAIN)
 

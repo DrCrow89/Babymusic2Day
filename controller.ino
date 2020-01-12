@@ -35,7 +35,7 @@ enum piLightStatus
   LIGHT_INIT,
   LIGHT_ON,
   LIGHT_MUSIC_PLAY,
-  LIGHT_TO_OFF
+  LIGHT_SHUTDOWN
 };
 
 /* ------------------------------------------------------------------------------------------ */
@@ -69,6 +69,7 @@ const int TIME_BETWEEN_LED = 3;  // 3 Zyklen zwischen dem LED wechsel beim Init-
 int schleifen_zaehler_licht = 0;
 int aktuelle_led = 0;
 int aktuelle_helligkeit = 0;
+int richtung_dimmen_licht = 0; // Soll gerade hochgedimmt werden oder herunter beim Musikabspielen. 0-->runterdimmen, 1-->hochdimmen
 /* ------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------ */
 /* ---------------------------------------- Programm ---------------------------------------- */
@@ -181,7 +182,14 @@ void check_status_pi()
     break;
 
     case PI_ON:
-      status_light = LIGHT_ON;
+      if(digitalRead(R_MUSIC_PLAY) == HIGH)
+      {
+        status_light = LIGHT_MUSIC_PLAY;
+      }
+      else
+      {
+        status_light = LIGHT_ON;
+      }
       // Keine Kommunikation mehr vorhanden. Pi wird eventuell heruntergefahren oder hat sich aufgehangen
       if(  (communication_pi_activ == 0)
          &&(counter_lost_comm < TIMER_ON_TO_OFF)
@@ -211,7 +219,7 @@ void check_status_pi()
     break;
 
     case PI_SHUTDOWN:
-      status_light = LIGHT_TO_OFF;
+      status_light = LIGHT_SHUTDOWN;
       if(counter_shutdown_pi < TIMER_ON_TO_OFF)
       {
         counter_shutdown_pi = counter_shutdown_pi + 1;
@@ -280,9 +288,39 @@ void check_status_light()
         FastLED.show();
       }
     break;
-    //case LIGHT_MUSIC_PLAY:
-    //break;
-    case LIGHT_TO_OFF:
+    case LIGHT_MUSIC_PLAY:
+      if(richtung_dimmen_licht == 0) //runterdimmen
+      {
+        aktuelle_helligkeit = aktuelle_helligkeit -2;
+        if(aktuelle_helligkeit > 4)
+        {
+          FastLED.setBrightness(aktuelle_helligkeit);
+          FastLED.show();
+        }
+        else
+        {
+          richtung_dimmen_licht = 1;
+        }
+      }
+      else //hochdimmen
+      {
+        aktuelle_helligkeit = aktuelle_helligkeit +2;
+        if(aktuelle_helligkeit < MAX_HELLIGKEIT)
+        {
+          FastLED.setBrightness(aktuelle_helligkeit);
+          FastLED.show();
+        }
+        else
+        {
+          richtung_dimmen_licht = 0;
+        }
+      }
+    break;
+    case LIGHT_SHUTDOWN:
+      for(int i = 0; i < NUM_LEDS; i++)
+      {
+        leds[i] = CRGB(255, 0, 0);
+      }
       if(aktuelle_helligkeit > 0)
       {
         aktuelle_helligkeit = aktuelle_helligkeit -1;
