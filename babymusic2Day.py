@@ -5,6 +5,7 @@ import os, sys, time, subprocess
 import glob, random # Playlisten erstellen
 import shutil # Kopieren der Log-Datei
 import serial # Kommunikation mit Arduino
+import threading # Start des Alive-Bits
 sys.path.append('MFRC522-python')
 sys.path.append('pygame')
 import MFRC522, pygame
@@ -16,7 +17,8 @@ INIT_SOUND = True
 DEBUG_MODE = False
 '''---------------------- Konstanten ----------------------'''
 '''--------------------------------------------------------'''
-ZYKLUSZEIT_MAIN = 0.2 # Zykluszeit des Programms
+ZYKLUSZEIT_MAIN = 0.1     # Zykluszeit des Programms sind 100ms
+ZYKLUSZEIT_ALIVE = 0.9    # Zykluszeit für das senden des Alive Flags
 VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
 NAME_LOG_DATEI = "musicfile.log" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
 INTRO_SOUND = "./data/intro.mp3"
@@ -24,12 +26,16 @@ MUSIK_FORMAT = ".mp3" # Musikformat der Musik.
 NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
 VOLUME_RANGE = 0.05
 VOMUME_START = 0.5
-TASTER_LAUTER = 31
-TASTER_LEISER = 33
-GPIO_PIN_ARDUINO = 29
-GPIO_PIN_SHUTDOWN = 11 # Wird gebraucht, dass der Port wieder auf BCM gestellt wird und das shutdown Skript von OnOffShim wieder funktioniert.
+GPIO_PIN_ALIVE = 7        # Pi Alive Flag für Energie-Kontroller
+GPIO_PIN_SHUTDOWN = 11    # Input Pin zum herunterfahren des Pi
+GPIO_PIN_BUTTON_MUTE = 13 # Input Pin Lautstärketasten aus- oder einschalten
+GPIO_PIN_LIGHT_MUTE = 15  # Input Pin zum ein- und ausschalten der Beleuchtung
+GPIO_PIN_LAUTER = 29 # Input Pin für lauter - Button
+GPIO_PIN_LEISER = 31      # Input Pin für leiser - Button
 '''---------------------- Variablen -----------------------'''
 '''--------------------------------------------------------'''
+global switch_button_mute # Variable zum einlesen des Schalters um die Lautstärketasten einzulesen
+global switch_light_mute  # Variable zum einlesen des Schalters um die Lichtsteuerung ein- oder auszuschalten
 program_run = True
 nio_read_counter = 0 # Counter zum
 aktuelle_chip_uid = "LEER"
@@ -98,14 +104,36 @@ def stop_musikplayer(ue_path, ue_titel, ue_spielzeit_offset):
         pygame.mixer.music.stop()
 
 def increase_volume(ue_gpio_nummer):
-    volume = pygame.mixer.music.get_volume() + VOLUME_RANGE
-    pygame.mixer.music.set_volume(volume)
-    print pygame.mixer.music.get_volume()
+    global switch_button_mute
+    if switch_button_mute == True:
+        volume = pygame.mixer.music.get_volume() + VOLUME_RANGE
+        pygame.mixer.music.set_volume(volume)
+        print pygame.mixer.music.get_volume()
+    else:
+        print "Lautstärketasten sind ausgeschaltet"
 
 def decrease_volume(ue_gpio_nummer):
-    volume = pygame.mixer.music.get_volume() - VOLUME_RANGE
-    pygame.mixer.music.set_volume(volume)
-    print pygame.mixer.music.get_volume()
+    global switch_button_mute
+    if switch_button_mute == True:
+        volume = pygame.mixer.music.get_volume() - VOLUME_RANGE
+        pygame.mixer.music.set_volume(volume)
+        print pygame.mixer.music.get_volume()
+    else:
+        print "Lautstärketasten sind ausgeschaltet"
+
+def mute_volume_button(ue_gpio_nummer):
+    global switch_button_mute
+    if switch_button_mute == True:
+        switch_button_mute = False
+    else:
+        switch_button_mute = True
+
+def mute_light(ue_gpio_nummer):
+    global switch_light_mute
+    if switch_light_mute == True:
+        switch_light_mute = False
+    else:
+        switch_light_mute = True
 
 def create_playlist_sortiert(ue_verzeichnis):
     playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
@@ -168,6 +196,22 @@ def read_chip(MIFAREReader):
             pass
     return temp_neue_uid, aktuelle_chip_uid # return1: Neue gültige uid / return2: chip uid der aktuellen Karte
 
+'''--------------------------------------------------------'''
+'''------------------- Thread Funktionen ------------------'''
+def FlagPiIsAlive(name):
+    t = threading.currentThread()
+    alive_flag = True
+    while getattr(t, "do_run", True):
+        if alive_flag == True:
+            GPIO.output(GPIO_PIN_ALIVE, True)
+            alive_flag = False
+        else:
+            GPIO.output(GPIO_PIN_ALIVE, False)
+            alive_flag = True
+        time.sleep(ZYKLUSZEIT_ALIVE)
+
+'''--------------------------------------------------------'''
+'''--------------------- Hauptprogramm --------------------'''
 def main():
     global program_run
     global aktuelles_musik_verzeichnis
@@ -175,6 +219,8 @@ def main():
     global aktueller_titel
     global aktueller_titel_index
     global verbindung_arduino
+    global switch_button_mute
+    global switch_light_mute
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
     chip_auf_leser = 0
     spielzeit_offset = 0
@@ -183,33 +229,41 @@ def main():
     '''--------------------------------------------------------'''
     GPIO.setwarnings(False)
     #GPIO.setmode(GPIO.BOARD) Ist schon über MFRC522 importiert
-    GPIO.setup(GPIO_PIN_ARDUINO, GPIO.OUT) #Ansteuerung Arduino
-    GPIO.output(GPIO_PIN_ARDUINO, False)
-    GPIO.setup(TASTER_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(TASTER_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(GPIO_PIN_ALIVE, GPIO.OUT)
     GPIO.setup(GPIO_PIN_SHUTDOWN, GPIO.IN)
-    GPIO.add_event_detect(TASTER_LAUTER, GPIO.FALLING, callback=increase_volume, bouncetime=300)
-    GPIO.add_event_detect(TASTER_LEISER, GPIO.FALLING, callback=decrease_volume, bouncetime=300)
-    #GPIO.add_event_detect(GPIO_PIN_SHUTDOWN, GPIO.FALLING, callback=count_shutdown, bouncetime=300)
+    GPIO.setup(GPIO_PIN_BUTTON_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(GPIO_PIN_LIGHT_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(GPIO_PIN_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(GPIO_PIN_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
-    try:
-        GPIO.output(GPIO_PIN_ARDUINO, True)
-        arduino = serial.Serial('/dev/ttyUSB0', 9600)
-        arduino.isOpen()
-        time.sleep(2) # Alternativ 5 Sekunden, der PI versorgt den Arduino schon von Anfang an mit Strom.
-        verbindung_arduino = True
-        arduino.write("1")
-        response = arduino.readline()
-        #print response
-    except:
-        verbindung_arduino = False
-        GPIO.output(GPIO_PIN_ARDUINO, False)
-        print "Fehler bei der Verbindung zum Arduino"
+    if GPIO.input(GPIO_PIN_BUTTON_MUTE) == True:
+        switch_button_mute = True
+    else:
+        switch_button_mute = False
+    if GPIO.input(GPIO_PIN_LIGHT_MUTE) == True:
+        switch_light_mute = True
+    else:
+        switch_light_mute = False
+
+    GPIO.add_event_detect(GPIO_PIN_LAUTER,GPIO.RISING,callback=increase_volume,bouncetime=800)
+    GPIO.add_event_detect(GPIO_PIN_LEISER,GPIO.RISING,callback=decrease_volume,bouncetime=800)
+    GPIO.add_event_detect(GPIO_PIN_BUTTON_MUTE,GPIO.BOTH,callback=mute_volume_button,bouncetime=1000)
+    GPIO.add_event_detect(GPIO_PIN_LIGHT_MUTE,GPIO.BOTH,callback=mute_light,bouncetime=1000)
 
     init_musikplayer()
 
     try:
+        t_pi_alive = threading.Thread(target=FlagPiIsAlive, args=("Pi is alive",))
+        t_pi_alive.start()
         while program_run:
+            # Auswertung für den Befehls des Herunterfahren
+            if GPIO.input(GPIO_PIN_SHUTDOWN) == GPIO.HIGH:
+                pass
+                #t_pi_alive.do_run = False
+                #t_pi_alive.join()
+                #GPIO.cleanup()
+                #os.system("sudo shutdown -h now")
+                print "SHUTDOWN"
             # Auswertung des Readers
             neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
