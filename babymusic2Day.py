@@ -1,79 +1,65 @@
-#!/usr/bin/env python
-# -*- coding: utf8 -*-
-import RPi.GPIO as GPIO
-import os, sys, time, subprocess
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import threading # Start des Alive-Bits
+import time
+import os, sys
 import glob, random # Playlisten erstellen
 import shutil # Kopieren der Log-Datei
-import serial # Kommunikation mit Arduino
-import threading # Start des Alive-Bits
+import subprocess # Erstellen des neuen Verzeichnisses
+import RPi.GPIO as GPIO
 sys.path.append('MFRC522-python')
-sys.path.append('pygame')
 import MFRC522, pygame
 import config2Day
-
 '''-------------------- Konfiguration ---------------------'''
 '''--------------------------------------------------------'''
-INIT_SOUND = True
-DEBUG_MODE = False
-'''---------------------- Konstanten ----------------------'''
+INIT_SOUND = False
+DEBUG_MODE = True
 '''--------------------------------------------------------'''
+'''---------------------- Konstanten ----------------------'''
 ZYKLUSZEIT_MAIN = 0.1     # Zykluszeit des Programms sind 100ms
 ZYKLUSZEIT_ALIVE = 0.9    # Zykluszeit für das senden des Alive Flags
-VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
-NAME_LOG_DATEI = "musicfile.log" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
-INTRO_SOUND = "./data/intro.mp3"
-MUSIK_FORMAT = ".mp3" # Musikformat der Musik.
-NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
-VOLUME_RANGE = 0.05
-VOMUME_START = 0.5
 GPIO_PIN_ALIVE = 7        # Pi Alive Flag für Energie-Kontroller
 GPIO_PIN_SHUTDOWN = 11    # Input Pin zum herunterfahren des Pi
 GPIO_PIN_BUTTON_MUTE = 13 # Input Pin Lautstärketasten aus- oder einschalten
 GPIO_PIN_LIGHT_MUTE = 15  # Input Pin zum ein- und ausschalten der Beleuchtung
-GPIO_PIN_LAUTER = 29 # Input Pin für lauter - Button
+GPIO_PIN_LAUTER = 29      # Input Pin für lauter - Button
 GPIO_PIN_LEISER = 31      # Input Pin für leiser - Button
-'''---------------------- Variablen -----------------------'''
+
+INTRO_SOUND = "./data/intro.mp3"
+VERZEICHNIS_DATEN = "./data" # Ablageort der Musikdateien
+NAME_LOG_DATEI = "musicfile.log" # Pro Verzeichnis gibt es eine Log Datei um verschiedene Informationen zu speichern
+MUSIK_FORMAT = ".mp3" # Musikformat der Musik.
+VOLUME_RANGE = 0.05
+VOMUME_START = 0.5
+
+NIO_READ_COUNTER_THR = 2 # Ist ein Chip nicht lesbar wird diese Anzahl nochmal gelesen bis es auf einen unglültigen Wert gesetzt wird
+
 '''--------------------------------------------------------'''
+'''---------------------- Variablen -----------------------'''
 global switch_button_mute # Variable zum einlesen des Schalters um die Lautstärketasten einzulesen
 global switch_light_mute  # Variable zum einlesen des Schalters um die Lichtsteuerung ein- oder auszuschalten
-program_run = True
-nio_read_counter = 0 # Counter zum
+nio_read_counter = 0
 aktuelle_chip_uid = "LEER"
 letzte_gueltige_chip_uid = "LEER"
 aktuelles_musik_verzeichnis = "LEER"
 aktuelle_playliste = []
 aktueller_titel_index = 0
 aktueller_titel = "LEER"
-verbindung_arduino = False
-status_lichtsteuerung = 0
 
-def set_licht(ue_uid_valid, arduino):
-    global status_lichtsteuerung
-    try:
-        if(status_lichtsteuerung == 0): # Licht wurde initialisiert, geht nach dem Blinken auf dauerhaft grün
-            if((ue_uid_valid == True)and(pygame.mixer.music.get_busy() == True)):
-                status_lichtsteuerung = 1 # starte blinken
-                arduino.write("2")
-                response = arduino.readline()
-                #print response
-            else:
-                pass
-        elif(status_lichtsteuerung == 1): # Musik läuft und das Licht blinkt
-            if(pygame.mixer.music.get_busy() == False):
-                status_lichtsteuerung = 0 # Musik wurde gestoppt und das Licht soll zurück auf dauerhaft grün
-                arduino.write("4")
-                response = arduino.readline()
-                #print response
-            else:
-                pass
-        else:
-            pass
-    except:
-        verbindung_arduino = False
-        GPIO.output(GPIO_PIN_ARDUINO, False)
-        print "Fehler bei der Verbindung zum Arduino nach Start"
-
+'''--------------------------------------------------------'''
+'''------------------ GPIO Einstellungen ------------------'''
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(GPIO_PIN_ALIVE, GPIO.OUT)
+GPIO.setup(GPIO_PIN_SHUTDOWN, GPIO.IN)
+GPIO.setup(GPIO_PIN_BUTTON_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(GPIO_PIN_LIGHT_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(GPIO_PIN_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setup(GPIO_PIN_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+'''--------------------------------------------------------'''
+'''---------------- Musikplayer Funktionen ----------------'''
 def init_musikplayer():
+    pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=4096)
     pygame.mixer.init()
     pygame.mixer.music.set_volume(VOMUME_START)
     if INIT_SOUND == True:
@@ -125,48 +111,39 @@ def mute_volume_button(ue_gpio_nummer):
     global switch_button_mute
     if switch_button_mute == True:
         switch_button_mute = False
+        print "Schalter für Lautstärketasten aus"
     else:
         switch_button_mute = True
+        print "Schalter für Lautstärketasten ein"
 
+'''--------------------------------------------------------'''
+'''-------------- Lichtsteuerung Funktionen ---------------'''
 def mute_light(ue_gpio_nummer):
     global switch_light_mute
     if switch_light_mute == True:
         switch_light_mute = False
+        print "Schalter für Lichtsteuerung war aus"
     else:
         switch_light_mute = True
+        print "Schalter für Lichtsteuerung war ein"
 
-def create_playlist_sortiert(ue_verzeichnis):
-    playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
-    playliste.sort()
-    return playliste
-
-def create_playlist_random(ue_verzeichnis):
-    playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
-    random.shuffle(playliste)
-    return playliste
-
-def create_verzeichnis(ue_ordner):
-    try:
-        temp_verzeichnis = os.path.join(VERZEICHNIS_DATEN, ue_ordner)
-        os.mkdir(temp_verzeichnis) # Ordner mit der ID erstellen
-        shutil.copy(os.path.join(VERZEICHNIS_DATEN, NAME_LOG_DATEI), temp_verzeichnis) # Default-Logdatei in neues Verzeichnis kopieren
-        subprocess.call(["sudo", "chmod", "-R", "777", temp_verzeichnis])
-    except OSError:
-        print "Verzeichnis konnte nicht erstellt werden"
-
-def check_verzeichnis(ue_uid):
-    ret_musik_vorhanden = False
-    if (ue_uid != "LEER"): # Für die erste LOOP bei Programmstart nicht das Verzeichnis prüfen.
-        if os.path.isdir(os.path.join(VERZEICHNIS_DATEN, ue_uid)) == True: # Verzeichnis existiert
-            #print "Verzeichnis: " + str(ue_uid) + " existiert"
-            for datei in os.listdir(os.path.join(VERZEICHNIS_DATEN, ue_uid)): # Prüft ob eine Musikdatei vorhanden ist.
-                if datei.endswith(MUSIK_FORMAT):
-                    ret_musik_vorhanden = True
-                    break
-        else: # Verzeichnis existiert nicht
-            ret_musik_vorhanden = False
-            create_verzeichnis(ue_uid)
-    return ret_musik_vorhanden
+'''--------------------------------------------------------'''
+'''------------------ Support Funktionen ------------------'''
+def read_config_switch():
+    global switch_button_mute
+    global switch_light_mute
+    if GPIO.input(GPIO_PIN_BUTTON_MUTE) == True:
+        switch_button_mute = True
+        print "Schalter für Lautstärketasten war an"
+    else:
+        switch_button_mute = False
+        print "Schalter für Lautstärketasten war aus"
+    if GPIO.input(GPIO_PIN_LIGHT_MUTE) == True:
+        switch_light_mute = True
+        print "Schalter für Lichtsteuerung war an"
+    else:
+        switch_light_mute = False
+        print "Schalter für Lichtsteuerung war aus"
 
 def read_chip(MIFAREReader):
     # Wirklich nötig die global zu haben?
@@ -196,6 +173,40 @@ def read_chip(MIFAREReader):
             pass
     return temp_neue_uid, aktuelle_chip_uid # return1: Neue gültige uid / return2: chip uid der aktuellen Karte
 
+def create_playlist_sortiert(ue_verzeichnis):
+    playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
+    playliste.sort()
+    return playliste
+
+def create_playlist_random(ue_verzeichnis):
+    playliste = glob.glob(os.path.join(ue_verzeichnis, '*.mp3')) # TODO: Wildcard ersetzen, damit MUSIK_FORMAT benutzt werden kann.
+    random.shuffle(playliste)
+    return playliste
+
+def create_verzeichnis(ue_ordner):
+    try:
+        temp_verzeichnis = os.path.join(VERZEICHNIS_DATEN, ue_ordner)
+        os.mkdir(temp_verzeichnis) # Ordner mit der ID erstellen
+        shutil.copy(os.path.join(VERZEICHNIS_DATEN, NAME_LOG_DATEI), temp_verzeichnis) # Default-Logdatei in neues Verzeichnis kopieren
+        subprocess.call(["sudo", "chmod", "-R", "777", temp_verzeichnis])
+        print "Neues Verzeichnis: " + str(temp_verzeichnis) + " erstellt."
+    except OSError:
+        print "Verzeichnis konnte nicht erstellt werden"
+
+def check_verzeichnis(ue_uid):
+    ret_musik_vorhanden = False
+    if (ue_uid != "LEER"): # Für die erste LOOP bei Programmstart nicht das Verzeichnis prüfen.
+        if os.path.isdir(os.path.join(VERZEICHNIS_DATEN, ue_uid)) == True: # Verzeichnis existiert
+            #print "Verzeichnis: " + str(ue_uid) + " existiert"
+            for datei in os.listdir(os.path.join(VERZEICHNIS_DATEN, ue_uid)): # Prüft ob eine Musikdatei vorhanden ist.
+                if datei.endswith(MUSIK_FORMAT):
+                    ret_musik_vorhanden = True
+                    break
+        else: # Verzeichnis existiert nicht
+            ret_musik_vorhanden = False
+            create_verzeichnis(ue_uid)
+    return ret_musik_vorhanden
+
 '''--------------------------------------------------------'''
 '''------------------- Thread Funktionen ------------------'''
 def FlagPiIsAlive(name):
@@ -213,61 +224,36 @@ def FlagPiIsAlive(name):
 '''--------------------------------------------------------'''
 '''--------------------- Hauptprogramm --------------------'''
 def main():
-    global program_run
+
     global aktuelles_musik_verzeichnis
     global aktuelle_playliste
     global aktueller_titel
     global aktueller_titel_index
-    global verbindung_arduino
-    global switch_button_mute
-    global switch_light_mute
     MIFAREReader = MFRC522.MFRC522() # Create an object of the class MFRC522
     chip_auf_leser = 0
     spielzeit_offset = 0
 
-    '''----------------------- Button -------------------------'''
-    '''--------------------------------------------------------'''
-    GPIO.setwarnings(False)
-    #GPIO.setmode(GPIO.BOARD) Ist schon über MFRC522 importiert
-    GPIO.setup(GPIO_PIN_ALIVE, GPIO.OUT)
-    GPIO.setup(GPIO_PIN_SHUTDOWN, GPIO.IN)
-    GPIO.setup(GPIO_PIN_BUTTON_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(GPIO_PIN_LIGHT_MUTE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(GPIO_PIN_LAUTER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(GPIO_PIN_LEISER, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-    if GPIO.input(GPIO_PIN_BUTTON_MUTE) == True:
-        switch_button_mute = True
-    else:
-        switch_button_mute = False
-    if GPIO.input(GPIO_PIN_LIGHT_MUTE) == True:
-        switch_light_mute = True
-    else:
-        switch_light_mute = False
-
+    read_config_switch()
     GPIO.add_event_detect(GPIO_PIN_LAUTER,GPIO.RISING,callback=increase_volume,bouncetime=800)
     GPIO.add_event_detect(GPIO_PIN_LEISER,GPIO.RISING,callback=decrease_volume,bouncetime=800)
     GPIO.add_event_detect(GPIO_PIN_BUTTON_MUTE,GPIO.BOTH,callback=mute_volume_button,bouncetime=1000)
     GPIO.add_event_detect(GPIO_PIN_LIGHT_MUTE,GPIO.BOTH,callback=mute_light,bouncetime=1000)
 
-    init_musikplayer()
-
     try:
         t_pi_alive = threading.Thread(target=FlagPiIsAlive, args=("Pi is alive",))
         t_pi_alive.start()
-        while program_run:
-            # Auswertung für den Befehls des Herunterfahren
+        init_musikplayer()
+        print "Hauptprogram start"
+        while True:
             if GPIO.input(GPIO_PIN_SHUTDOWN) == GPIO.HIGH:
                 pass
                 #t_pi_alive.do_run = False
                 #t_pi_alive.join()
                 #GPIO.cleanup()
                 #os.system("sudo shutdown -h now")
-                print "SHUTDOWN"
-            # Auswertung des Readers
+
             neue_uid, chip_uid = read_chip(MIFAREReader) # temp_status is true if a new rfid chip is detected
             if ((neue_uid == True)and(check_verzeichnis(chip_uid)) == True):
-                # starte Musikplayer mit neue Playliste
                 if DEBUG_MODE == True:
                     print "starte Musikplayer mit neue Playliste"
                 if (chip_uid == "LEER"):
@@ -323,25 +309,19 @@ def main():
             else:
                 pass
 
-            # Steuerung Licht
-            if(verbindung_arduino == True):
-                set_licht(check_verzeichnis(chip_uid), arduino) # Übergebe die Info ob ein gültiges Verzeichnis ausgewählt ist und Musik daraus gespielt werden kann
 
             time.sleep(ZYKLUSZEIT_MAIN)
 
     except KeyboardInterrupt:
+        t_pi_alive.do_run = False
+        t_pi_alive.join()
         GPIO.cleanup()
-        pygame.mixer.music.stop()
-        if verbindung_arduino == True:
-            arduino.close()
         print "Programm beendet"
 
-    except:
-        GPIO.cleanup()
-        pygame.mixer.music.stop()
-        if verbindung_arduino == True:
-            arduino.close()
-        print "Programmfehler: " + str(sys.exc_info()[0])
+    #except:
+    #    GPIO.cleanup()
+    #    pygame.mixer.music.stop()
+    #    print "Programmfehler: " + str(sys.exc_info()[0])
 
 if __name__ == "__main__":
     main()
