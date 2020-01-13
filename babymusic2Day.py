@@ -81,6 +81,9 @@ def start_musikplayer(ue_aktuelle_playliste, ue_aktueller_titel, ue_start):
     pygame.mixer.music.play(start=ue_start)
 
 def set_musikdaten(ue_path, ue_section, ue_option_titel, ue_option_stelle):
+    erfolgreich_gelesen, temp_zaehler = config2Day.get_value_int(ue_path, "Log", "zaehler_abgespielt") # Funktion wird nur aufgerufen, wenn der Musikplayer im normalen Betrieb gestoppt wird durch abnehmen der Figur
+    temp_zaehler = temp_zaehler + 1
+    config2Day.set_value(ue_path, "Log", "zaehler_abgespielt", str(temp_zaehler))
     config2Day.set_value(ue_path, "Log", "letzter_titel", str(ue_option_titel))
     config2Day.set_value(ue_path, "Log", "letzte_stelle", str(ue_option_stelle))
 
