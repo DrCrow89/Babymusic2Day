@@ -16,7 +16,7 @@ const int R_LIGHT_MUTE = 4;                    // Pin zum empfangen ob das Licht
 
 const int BUTTON_PRESS_THR = 5;                // Taster muss ca. 500ms gedrückt werden, dass aktiv etwas erkannt wird.
 const int BUTTON_PRESS_HARD_OFF_THR = 40;      // Taster muss ca. 4s gedrückt werden, dass der Hard-Reset erkannt wird.
-const int TIMER_STARTING_TO_OFF = 150;         // Ist der Pi Status in STARTING, wird auf das Hochfahren des Pi gewartet.
+const int TIMER_STARTING_TO_OFF = 180;         // Ist der Pi Status in STARTING, wird auf das Hochfahren des Pi gewartet. Zeitmessung waren ca. 15.8 Sekunden bei 150 Zyklen.
 const int TIMER_ON_TO_OFF = 120;               // Ist der Pi Status in ON und der Befehl kam zum Runterfahren, wird eine Zeit gewartet, bis der Pi tatsächlich heruntergefahren ist.
 const int TIMER_STARTING_AFTER_HARDRESET = 30; // Nach einem Hard-Reset muss erst eine Zeit Ablaufen, dass erneut eingeschaltet werden kann.
 const int TIMER_ALIVE_PI = 15;                 // Der Pi sollte mindestens jede Sekunde (plus einen Puffer) den Status wechseln um die Kommunikation zu signalisieren.
@@ -179,6 +179,8 @@ void check_status_pi()
       else
       {
         startup_pi_counter = startup_pi_counter +1;
+        Serial.print(startup_pi_counter);
+        Serial.print("Test\n");
       }
     break;
 
