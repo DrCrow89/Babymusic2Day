@@ -13,6 +13,7 @@ def check_log_file(ue_pfad_datei):
         Config.add_section('Log')
         Config.set('Log', 'letzter_titel', 'LEER')
         Config.set('Log', 'letzte_stelle', '0')
+        Config.set('Log', 'zaehler_abgespielt', '0')
         Config.write(cfgfile)
         cfgfile.close()
 
