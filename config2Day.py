@@ -10,6 +10,7 @@ def check_log_file(ue_pfad_datei):
         cfgfile = open(ue_pfad_datei,'w')
         Config.add_section('Grundeinstellung')
         Config.set('Grundeinstellung', 'Typ', 'Hoerspiel') # Hoerspiel/Musik
+        Config.set('Grundeinstellung', 'Name', 'Testhoerspiel')
         Config.add_section('Log')
         Config.set('Log', 'letzter_titel', 'LEER')
         Config.set('Log', 'letzte_stelle', '0')

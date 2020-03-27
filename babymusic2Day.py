@@ -12,8 +12,8 @@ import MFRC522, pygame
 import config2Day
 '''-------------------- Konfiguration ---------------------'''
 '''--------------------------------------------------------'''
-INIT_SOUND = False
-DEBUG_MODE = True
+INIT_SOUND = True
+DEBUG_MODE = False
 '''--------------------------------------------------------'''
 '''---------------------- Konstanten ----------------------'''
 # Pins 3, 5, 11, 12, 35, 38, 40 können und dürfen nicht benutzt werden
@@ -81,10 +81,10 @@ def start_musikplayer(ue_aktuelle_playliste, ue_aktueller_titel, ue_start):
     pygame.mixer.music.play(start=ue_start)
 
 def set_musikdaten(ue_path, ue_section, ue_option_titel, ue_option_stelle, ue_option_spielzeit):
-    erfolgreich_gelesen, temp_zaehler = config2Day.get_value_int(ue_path, "Log", "zaehler_abgespielt") # Funktion wird nur aufgerufen, wenn der Musikplayer im normalen Betrieb gestoppt wird durch abnehmen der Figur
-    erfolgreich_gelesen, temp_spielzeit = config2Day.get_value_int(ue_path, "Log", "gesamt_spielzeit")
+    erfolgreich_gelesen_1, temp_zaehler = config2Day.get_value_int(ue_path, "Log", "zaehler_abgespielt") # Funktion wird nur aufgerufen, wenn der Musikplayer im normalen Betrieb gestoppt wird durch abnehmen der Figur
+    erfolgreich_gelesen_2, temp_spielzeit = config2Day.get_value_int(ue_path, "Log", "gesamt_spielzeit")
     temp_zaehler = temp_zaehler + 1
-    temp_spielzeit = temp_spielzeit + ue_option_spielzeit
+    temp_spielzeit = temp_spielzeit + int(round(ue_option_spielzeit*2)/2) # Durch int nur eine grobe Rundung. Ab 1.8s ist es aufgerundet 2 Sekunden.
     config2Day.set_value(ue_path, "Log", "zaehler_abgespielt", str(temp_zaehler))
     config2Day.set_value(ue_path, "Log", "letzter_titel", str(ue_option_titel))
     config2Day.set_value(ue_path, "Log", "letzte_stelle", str(ue_option_stelle))
@@ -266,7 +266,7 @@ def main():
         init_musikplayer()
         print "Hauptprogram start"
         while program_run:
-            if GPIO.input(GPIO_PIN_SHUTDOWN) == GPIO.HIGH:
+            if (GPIO.input(GPIO_PIN_SHUTDOWN) == GPIO.HIGH)and(DEBUG_MODE == True):
                 program_run = False
                 print "Shutdown-Befehl empfangen"
 
